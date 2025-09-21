@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Client, Matter, Page } from '../types';
 import SearchIcon from './icons/SearchIcon';

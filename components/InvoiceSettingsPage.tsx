@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { UserProfile, InvoiceSettings, Invoice, TimeEntry, Client } from '../types';
+import { UserProfile, InvoiceSettings, Invoice, Client, InvoiceLineItem } from '../types';
 import ErrorAlert from './ErrorAlert';
 import InvoicePreview from './InvoicePreview';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -42,19 +43,23 @@ const InvoiceSettingsPage: React.FC<InvoiceSettingsPageProps> = ({ user, onUpdat
         }
     };
     
+    const hourlyRate = user.hourly_rate || 150;
+    const mockLineItems: InvoiceLineItem[] = [
+        { id: '1', date: new Date().toISOString(), description: 'Legal Research on precedents', hours: 1.5, rate: hourlyRate },
+        { id: '2', date: new Date().toISOString(), description: 'Client meeting re: strategy', hours: 1.0, rate: hourlyRate },
+    ];
+    const mockAmount = mockLineItems.reduce((total, item) => total + (item.hours * item.rate), 0);
+
     // Create a mock invoice for preview purposes
     const mockInvoice: Invoice = {
         id: 'INV-PREVIEW',
         matter_id: 'matter-preview',
         client_id: 'client-preview',
-        amount: 375.00,
+        amount: mockAmount,
         status: 'draft',
         dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         issuedDate: new Date().toISOString().split('T')[0],
-        lineItems: [
-            { id: '1', hours: 1.5, description: 'Legal Research on precedents', date: new Date().toISOString() } as TimeEntry,
-            { id: '2', hours: 1.0, description: 'Client meeting re: strategy', date: new Date().toISOString() } as TimeEntry,
-        ],
+        lineItems: mockLineItems,
         url: ''
     };
     

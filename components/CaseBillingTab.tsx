@@ -1,9 +1,11 @@
+
 import React, { useState, useMemo } from 'react';
-import { Matter, TimeEntry, UserProfile, Invoice, Client } from '../types';
+import { Matter, TimeEntry, UserProfile, Invoice, Client, InvoiceLineItem } from '../types';
 import ErrorAlert from './ErrorAlert';
 import BillingIcon from './icons/BillingIcon';
 import TimeLogModal from './TimeLogModal';
 import InvoicePreview from './InvoicePreview';
+import { v4 as uuidv4 } from 'uuid';
 
 interface CaseBillingTabProps {
     matter: Matter;
@@ -22,6 +24,8 @@ const CaseBillingTab: React.FC<CaseBillingTabProps> = ({ matter, timeEntries, in
     const [error, setError] = useState<string | null>(null);
     const [isTimeModalOpen, setIsTimeModalOpen] = useState(false);
     const [timeEntryToEdit, setTimeEntryToEdit] = useState<TimeEntry | null>(null);
+    const [isEditingInvoice, setIsEditingInvoice] = useState(false);
+    const [editableInvoice, setEditableInvoice] = useState<Invoice | null>(null);
 
     const client = user.clients.find(c => c.id === matter.client_id)!;
     const unbilledEntries = useMemo(() => timeEntries.filter(e => !e.is_billed), [timeEntries]);
@@ -46,7 +50,16 @@ const CaseBillingTab: React.FC<CaseBillingTabProps> = ({ matter, timeEntries, in
             return;
         }
         setError(null);
-        const totalAmount = itemsToInvoice.reduce((acc, item) => acc + (item.hours * hourlyRate), 0);
+        
+        const lineItemsForInvoice: InvoiceLineItem[] = itemsToInvoice.map(item => ({
+            id: item.id,
+            date: item.date,
+            description: item.description,
+            hours: item.hours,
+            rate: hourlyRate,
+        }));
+        
+        const totalAmount = lineItemsForInvoice.reduce((acc, item) => acc + (item.hours * item.rate), 0);
         const invoiceId = `INV-${Date.now()}`;
         const newInvoice: Invoice = {
             id: invoiceId,
@@ -56,7 +69,7 @@ const CaseBillingTab: React.FC<CaseBillingTabProps> = ({ matter, timeEntries, in
             status: 'draft',
             issuedDate: new Date().toISOString().split('T')[0],
             dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
-            lineItems: itemsToInvoice,
+            lineItems: lineItemsForInvoice,
             url: `${window.location.origin}/invoice/${invoiceId}`
         };
 
@@ -98,6 +111,26 @@ const CaseBillingTab: React.FC<CaseBillingTabProps> = ({ matter, timeEntries, in
         }
     };
     
+    const handleStartEditInvoice = () => {
+        setEditableInvoice(JSON.parse(JSON.stringify(viewingInvoice))); // Deep copy
+        setIsEditingInvoice(true);
+    };
+
+    const handleSaveInvoiceChanges = async () => {
+        if (!editableInvoice) return;
+        const newTotal = editableInvoice.lineItems.reduce((acc, item) => acc + (item.hours * item.rate), 0);
+        const invoiceToSave = { ...editableInvoice, amount: newTotal };
+
+        try {
+            await onUpdateInvoice(invoiceToSave);
+            setViewingInvoice(invoiceToSave);
+            setIsEditingInvoice(false);
+            setEditableInvoice(null);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Failed to save invoice changes.");
+        }
+    };
+
     const InvoiceStatusBadge: React.FC<{status: Invoice['status']}> = ({ status }) => {
         const config = {
             draft: 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300',
@@ -112,7 +145,7 @@ const CaseBillingTab: React.FC<CaseBillingTabProps> = ({ matter, timeEntries, in
     if (viewingInvoice) {
         return (
             <div>
-                <button onClick={() => setViewingInvoice(null)} className="mb-4 text-sm font-medium text-blue-600 hover:underline">&larr; Back to Billing Overview</button>
+                <button onClick={() => { setViewingInvoice(null); setIsEditingInvoice(false); }} className="mb-4 text-sm font-medium text-blue-600 hover:underline">&larr; Back to Billing Overview</button>
                 <div className="flex flex-col sm:flex-row gap-4 justify-between items-start">
                     <div>
                         <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200">Invoice #{viewingInvoice.id.split('-')[1]}</h3>
@@ -121,14 +154,28 @@ const CaseBillingTab: React.FC<CaseBillingTabProps> = ({ matter, timeEntries, in
                             <InvoiceStatusBadge status={viewingInvoice.status} />
                         </div>
                     </div>
-                    <div className="flex gap-2 self-end sm:self-center">
-                        {viewingInvoice.status === 'draft' && <button onClick={() => handleUpdateStatus(viewingInvoice, 'sent')} className="px-3 py-1 text-xs bg-green-600 text-white rounded-md hover:bg-green-700">Mark as Sent</button>}
-                        {viewingInvoice.status === 'sent' && <button onClick={() => handleUpdateStatus(viewingInvoice, 'paid')} className="px-3 py-1 text-xs bg-green-600 text-white rounded-md hover:bg-green-700">Mark as Paid</button>}
-                        {(viewingInvoice.status === 'draft' || viewingInvoice.status === 'sent') && <button onClick={() => handleUpdateStatus(viewingInvoice, 'void')} className="px-3 py-1 text-xs bg-red-600 text-white rounded-md hover:bg-red-700">Void</button>}
-                    </div>
+                    {!isEditingInvoice && (
+                         <div className="flex gap-2 self-end sm:self-center">
+                            {viewingInvoice.status === 'draft' && <button onClick={handleStartEditInvoice} className="px-3 py-1 text-xs bg-yellow-500 text-white rounded-md hover:bg-yellow-600">Edit</button>}
+                            {viewingInvoice.status === 'draft' && <button onClick={() => handleUpdateStatus(viewingInvoice, 'sent')} className="px-3 py-1 text-xs bg-green-600 text-white rounded-md hover:bg-green-700">Mark as Sent</button>}
+                            {viewingInvoice.status === 'sent' && <button onClick={() => handleUpdateStatus(viewingInvoice, 'paid')} className="px-3 py-1 text-xs bg-green-600 text-white rounded-md hover:bg-green-700">Mark as Paid</button>}
+                            {(viewingInvoice.status === 'draft' || viewingInvoice.status === 'sent') && <button onClick={() => handleUpdateStatus(viewingInvoice, 'void')} className="px-3 py-1 text-xs bg-red-600 text-white rounded-md hover:bg-red-700">Void</button>}
+                        </div>
+                    )}
                 </div>
                  <div className="mt-4">
-                    <InvoicePreview invoice={viewingInvoice} settings={user.invoice_settings} client={client} user={user} />
+                     {isEditingInvoice && editableInvoice ? (
+                        <InvoiceEditor 
+                            invoice={editableInvoice} 
+                            setInvoice={setEditableInvoice}
+                            client={client}
+                            user={user}
+                            onSave={handleSaveInvoiceChanges}
+                            onCancel={() => setIsEditingInvoice(false)}
+                        />
+                    ) : (
+                        <InvoicePreview invoice={viewingInvoice} settings={user.invoice_settings} client={client} user={user} />
+                    )}
                 </div>
             </div>
         );
@@ -232,12 +279,107 @@ const CaseBillingTab: React.FC<CaseBillingTabProps> = ({ matter, timeEntries, in
              <TimeLogModal 
                 isOpen={isTimeModalOpen}
                 onClose={() => { setIsTimeModalOpen(false); setTimeEntryToEdit(null); }}
-                onSave={onUpdateTimeEntry}
+                onSave={onUpdateTimeEntry as any}
                 matter={matter}
                 entryToEdit={timeEntryToEdit}
             />
         </div>
     );
 };
+
+
+const InvoiceEditor: React.FC<{
+    invoice: Invoice;
+    setInvoice: React.Dispatch<React.SetStateAction<Invoice | null>>;
+    onSave: () => void;
+    onCancel: () => void;
+    client: Client;
+    user: UserProfile;
+}> = ({ invoice, setInvoice, onSave, onCancel, client, user }) => {
+
+    const handleLineItemChange = (index: number, field: keyof InvoiceLineItem, value: string | number) => {
+        setInvoice(prev => {
+            if (!prev) return null;
+            const newItems = [...prev.lineItems];
+            (newItems[index] as any)[field] = value;
+            return { ...prev, lineItems: newItems };
+        });
+    };
+
+    const handleAddLineItem = () => {
+        setInvoice(prev => {
+            if (!prev) return null;
+            const newItem: InvoiceLineItem = {
+                id: `manual-${uuidv4()}`,
+                date: new Date().toISOString().split('T')[0],
+                description: '',
+                hours: 1,
+                rate: user.hourly_rate || 150,
+            };
+            return { ...prev, lineItems: [...prev.lineItems, newItem] };
+        });
+    };
+    
+    const handleRemoveLineItem = (id: string) => {
+        setInvoice(prev => {
+            if (!prev) return null;
+            return { ...prev, lineItems: prev.lineItems.filter(item => item.id !== id) };
+        });
+    };
+
+    const totalAmount = useMemo(() => {
+        return invoice.lineItems.reduce((acc, item) => acc + (Number(item.hours) || 0) * (Number(item.rate) || 0), 0);
+    }, [invoice.lineItems]);
+
+    const inputClasses = "w-full p-1 px-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded";
+
+    return (
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700">
+            <h3 className="text-xl font-bold mb-4">Editing Invoice</h3>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label className="text-sm font-medium">Due Date</label>
+                    <input type="date" value={invoice.dueDate} onChange={e => setInvoice(i => i ? {...i, dueDate: e.target.value} : null)} className="w-full input-field" />
+                </div>
+            </div>
+            
+            <div className="overflow-x-auto">
+                 <table className="w-full text-sm">
+                    <thead className="text-left text-slate-600 dark:text-slate-300">
+                        <tr>
+                            <th className="p-2">Description</th>
+                            <th className="p-2 w-24">Hours</th>
+                            <th className="p-2 w-24">Rate</th>
+                            <th className="p-2 w-28 text-right">Total</th>
+                            <th className="p-2 w-10"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {invoice.lineItems.map((item, index) => (
+                            <tr key={item.id} className="border-t border-slate-200 dark:border-slate-700">
+                                <td className="p-1"><input type="text" value={item.description || ''} onChange={e => handleLineItemChange(index, 'description', e.target.value)} className={inputClasses} /></td>
+                                <td className="p-1"><input type="number" step="0.1" value={item.hours} onChange={e => handleLineItemChange(index, 'hours', parseFloat(e.target.value))} className={`${inputClasses} text-right`} /></td>
+                                <td className="p-1"><input type="number" step="0.01" value={item.rate} onChange={e => handleLineItemChange(index, 'rate', parseFloat(e.target.value))} className={`${inputClasses} text-right`} /></td>
+                                <td className="p-2 text-right font-medium">${(item.hours * item.rate).toFixed(2)}</td>
+                                <td className="p-1 text-center"><button onClick={() => handleRemoveLineItem(item.id)} className="text-red-500 hover:text-red-700">&times;</button></td>
+                            </tr>
+                        ))}
+                    </tbody>
+                 </table>
+            </div>
+            <button onClick={handleAddLineItem} className="mt-2 text-sm font-medium text-blue-600 hover:underline">+ Add Line Item</button>
+
+            <div className="text-right mt-4 font-bold text-xl">
+                Total: ${totalAmount.toFixed(2)}
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
+                <button onClick={onCancel} className="px-4 py-2 text-sm bg-slate-100 dark:bg-slate-600 rounded-md">Cancel</button>
+                <button onClick={onSave} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md">Save Changes</button>
+            </div>
+        </div>
+    );
+};
+
 
 export default CaseBillingTab;

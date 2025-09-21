@@ -1,6 +1,6 @@
+
 import React, { useState, useMemo } from 'react';
-// FIX: Import `Json` type to handle Supabase JSON fields correctly.
-import { Matter, Client, OpposingParty, Conflict, Page, Json } from '../types';
+import { Matter, Client, Page, Json, OpposingParty, Conflict } from '../types';
 import ErrorAlert from './ErrorAlert';
 import { performSmartConflictCheck } from '../services/geminiService';
 
@@ -113,12 +113,10 @@ const ClientIntakePage: React.FC<ClientIntakePageProps> = ({ clients, matters, o
         await onAddMatter({
             client_id: selectedClientId,
             matter_name: matterName,
-            // FIX: Corrected a TypeScript type error. Cast `OpposingParty[]` to `unknown` before casting to `Json`
-            // to satisfy the strict type requirements for inserting into a Supabase JSON column.
             opposing_parties: opposingParties.filter(p => p.name.trim() !== '') as unknown as Json,
         });
         alert("Matter saved successfully!");
-        onNavigate('clients');
+        onNavigate('matters');
       } catch (err) {
         alert(`Failed to save matter: ${err instanceof Error ? err.message : 'Unknown error'}`);
       }
@@ -234,7 +232,7 @@ const ClientIntakePage: React.FC<ClientIntakePageProps> = ({ clients, matters, o
                                             {conflicts.map((c, i) => (
                                                 <li key={i}>
                                                     <strong>{c.conflictType} Conflict:</strong> Involving parties <strong>{Array.isArray(c.partiesInvolved) ? c.partiesInvolved.join(', ') : c.partiesInvolved}</strong>.
-                                                    <p className="pl-4 mt-1 text-xs italic">AI Reasoning: "{c.reasoning}"</p>
+                                                    <p className="pl-4 mt-1 text-xs italic">AI Reasoning: "{c.reason}"</p>
                                                 </li>
                                             ))}
                                         </ul>

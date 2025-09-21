@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import { Matter, Client, Document, Task, Note } from '../types';
 import { generateClientUpdate } from '../services/geminiService';
@@ -12,7 +11,6 @@ interface ClientUpdateTabProps {
     documents: Document[];
     tasks: Task[];
     notes: Note[];
-    // FIX: Changed onAddNote return type from `Promise<void>` to `Promise<Note>` to match the function signature of `addNote` passed from the parent component.
     onAddNote: (noteData: Omit<Note, 'id' | 'created_at' | 'user_id'>) => Promise<Note>;
 }
 

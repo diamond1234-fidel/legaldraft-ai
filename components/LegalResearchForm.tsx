@@ -1,7 +1,9 @@
 
+
 import React, { useState } from 'react';
 import { ResearchParams, ResearchType, SelectOption } from '../types';
-import { US_STATES } from '../constants';
+// FIX: Module '"../constants"' has no exported member 'US_STATES'.
+import { US_JURISDICTIONS } from '../constants';
 import UploadIcon from './icons/UploadIcon';
 import SearchIcon from './icons/SearchIcon';
 import ErrorAlert from './ErrorAlert';
@@ -22,7 +24,7 @@ const RESEARCH_TYPES: SelectOption[] = [
 const LegalResearchForm: React.FC<LegalResearchFormProps> = ({ isSearching, error, onSearch }) => {
     const [fullName, setFullName] = useState('');
     const [organization, setOrganization] = useState('');
-    const [state, setState] = useState(US_STATES[0].value);
+    const [state, setState] = useState(US_JURISDICTIONS[0].value);
     const [researchType, setResearchType] = useState<ResearchType>('publicProfile');
     const [image, setImage] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -81,7 +83,7 @@ const LegalResearchForm: React.FC<LegalResearchFormProps> = ({ isSearching, erro
                  <div>
                     <label htmlFor="state" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">State / Jurisdiction</label>
                     <select id="state" value={state} onChange={e => setState(e.target.value)} className="w-full input-field" disabled={researchType === 'reverseImage'}>
-                        {US_STATES.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                        {US_JURISDICTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                     </select>
                 </div>
             </div>

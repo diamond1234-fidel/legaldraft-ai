@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import { Client, Matter, Page } from '../types';
 import EditClientModal from './EditClientModal';

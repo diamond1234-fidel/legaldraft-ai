@@ -13,7 +13,7 @@ declare var marked: any;
 
 interface AnalysisReportProps {
     // FIX: Make analysis optional to support generated documents without analysis.
-    analysis?: ContractAnalysis | null;
+    analysis?: ContractAnalysis;
     document: Document;
     onReset: () => void;
     onCreateTemplate: (doc: Document) => void;

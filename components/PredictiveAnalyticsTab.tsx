@@ -1,6 +1,8 @@
 
+
 import React, { useState } from 'react';
-import { JURISDICTIONS } from '../constants';
+// FIX: '"../constants"' has no exported member named 'JURISDICTIONS'. Did you mean 'US_JURISDICTIONS'?
+import { US_JURISDICTIONS as JURISDICTIONS } from '../constants';
 import { predictMotionOutcome } from '../services/geminiService';
 import { PredictiveAnalyticsResult } from '../types';
 import ErrorAlert from './ErrorAlert';

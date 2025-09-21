@@ -1,6 +1,9 @@
+
+
 import React, { useState, useEffect } from 'react';
-import { JURISDICTIONS, PRACTICE_AREAS } from '../constants';
-import { performLegalResearch } from '../services/geminiService';
+// FIX: '"../constants"' has no exported member named 'JURISDICTIONS'. Did you mean 'US_JURISDICTIONS'?
+import { US_JURISDICTIONS as JURISDICTIONS, PRACTICE_AREAS } from '../constants';
+import { performLegalResearch, generatePromptSuggestions } from '../services/geminiService';
 import { LegalResearchResult, Tables } from '../types';
 import ErrorAlert from './ErrorAlert';
 import SearchIcon from './icons/SearchIcon';
@@ -8,6 +11,9 @@ import StrengthMeter from './StrengthMeter';
 import BookmarkIcon from './icons/BookmarkIcon';
 import ScaleIcon from './icons/ScaleIcon';
 import { supabase } from '../services/supabaseClient';
+import SparklesIcon from './icons/SparklesIcon';
+
+declare var marked: any;
 
 const LoadingState: React.FC = () => {
     const messages = [
@@ -47,10 +53,13 @@ const CaseLawResearchTab: React.FC = () => {
     const [results, setResults] = useState<LegalResearchResult | null>(null);
     const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([]);
     const [lastSearchedQuery, setLastSearchedQuery] = useState<{ query: string; jurisdiction: string } | null>(null);
+    const [suggestions, setSuggestions] = useState<string[]>([]);
+    const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+    const [suggestionError, setSuggestionError] = useState<string|null>(null);
 
     useEffect(() => {
         const fetchQueries = async () => {
-            // FIX: Use the asynchronous `getUser()` method for Supabase v2.
+            // FIX: Use the async `getUser()` method from Supabase v2.
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
                 const { data, error } = await supabase
@@ -66,6 +75,15 @@ const CaseLawResearchTab: React.FC = () => {
             }
         };
         fetchQueries();
+    }, []);
+
+    useEffect(() => {
+        const storedQuery = sessionStorage.getItem('researchQuery');
+        if (storedQuery) {
+            setQuery(storedQuery);
+            executeSearch(storedQuery, jurisdiction);
+            sessionStorage.removeItem('researchQuery');
+        }
     }, []);
 
     const executeSearch = async (searchQuery: string, searchJurisdiction: string) => {
@@ -99,7 +117,7 @@ const CaseLawResearchTab: React.FC = () => {
     const handleSaveSearch = async () => {
         const name = prompt("Enter a name for this search:");
         if (name && lastSearchedQuery) {
-            // FIX: Use the asynchronous `getUser()` method for Supabase v2.
+            // FIX: Use the async `getUser()` method from Supabase v2.
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) {
                 alert("You must be logged in to save a search.");
@@ -138,6 +156,25 @@ const CaseLawResearchTab: React.FC = () => {
                 setSavedQueries(prev => prev.filter(q => q.id !== id));
             }
         }
+    };
+
+    const handleGetSuggestions = async () => {
+        setIsLoadingSuggestions(true);
+        setSuggestionError(null);
+        setSuggestions([]);
+        try {
+            const result = await generatePromptSuggestions();
+            setSuggestions(result);
+        } catch (e) {
+            setSuggestionError(e instanceof Error ? e.message : 'Failed to get suggestions.');
+        } finally {
+            setIsLoadingSuggestions(false);
+        }
+    };
+
+    const handleSuggestionClick = (suggestion: string) => {
+        setQuery(suggestion);
+        executeSearch(suggestion, jurisdiction);
     };
     
     if (isLoading) {
@@ -186,6 +223,30 @@ const CaseLawResearchTab: React.FC = () => {
                     {isLoading ? 'Researching...' : 'Perform AI Research'}
                 </button>
             </form>
+            <div className="mt-6 max-w-3xl mx-auto">
+                <div className="flex flex-col items-center gap-4">
+                     <button onClick={handleGetSuggestions} disabled={isLoadingSuggestions} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-slate-600 hover:bg-slate-700 disabled:bg-slate-400">
+                        <SparklesIcon className="w-5 h-5 mr-2" />
+                        {isLoadingSuggestions ? 'Generating...' : 'Get AI Prompt Suggestions'}
+                    </button>
+                    {suggestionError && <ErrorAlert message={suggestionError} title="Suggestion Error" />}
+                    {suggestions.length > 0 && (
+                        <div className="w-full text-center">
+                            <div className="flex flex-wrap gap-2 justify-center mt-2">
+                                {suggestions.map((s, i) => (
+                                    <button 
+                                        key={i} 
+                                        onClick={() => handleSuggestionClick(s)} 
+                                        className="px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-700/50 text-slate-700 dark:text-slate-200 rounded-full hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                                    >
+                                        {s}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
             <div className="mt-8 max-w-3xl mx-auto">
                 <div className="relative flex py-2 items-center"><div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div><span className="flex-shrink mx-4 text-slate-400 dark:text-slate-500 text-sm">Or</span><div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div></div>
                 <h3 className="text-lg font-bold text-center text-slate-700 dark:text-slate-200">Browse by Practice Area</h3>
@@ -249,7 +310,7 @@ const SavedQueriesList: React.FC<{
 
 
 const ResultsDisplay: React.FC<{results: LegalResearchResult, onNewSearch: () => void, onSaveSearch: () => void}> = ({ results, onNewSearch, onSaveSearch }) => {
-    const sortedCases = [...results.relevantCases].sort((a, b) => new Date(a.decisionDate).getTime() - new Date(b.decisionDate).getTime());
+    const sortedCases = [...results.relevantCases].sort((a, b) => new Date(b.decisionDate).getTime() - new Date(a.decisionDate).getTime());
     
     return (
         <div className="space-y-8">
@@ -291,39 +352,33 @@ const ResultsDisplay: React.FC<{results: LegalResearchResult, onNewSearch: () =>
             </ResultCard>
             
             <div>
-                 <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200 mb-4">Case Progression Timeline ({sortedCases.length})</h3>
-                 <div className="relative pl-6 border-l-2 border-slate-200 dark:border-slate-700">
-                    {sortedCases.map((c) => (
-                        <div key={c.citation} className="mb-8 relative last:mb-0">
-                             <div className="absolute -left-[33px] top-1 h-4 w-4 bg-blue-500 rounded-full border-4 border-white dark:border-slate-800"></div>
-                             <p className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-1">{new Date(c.decisionDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                             <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
-                               <div className="flex justify-between items-start">
-                                 <div>
-                                    <h4 className="font-bold text-slate-800 dark:text-slate-100">{c.caseName}</h4>
-                                    <p className="text-sm text-slate-500 dark:text-slate-400">{c.citation} &bull; {c.court}</p>
-                                 </div>
-                                 <a href={`https://www.courtlistener.com${c.url}`} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-blue-600 hover:underline flex-shrink-0 ml-4">View Full Case</a>
-                               </div>
-                               <p className="text-sm text-slate-600 dark:text-slate-300 mt-2"><strong>AI Summary:</strong> {c.aiSummary}</p>
-                               <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 bg-slate-100 dark:bg-slate-700/50 p-2 rounded-md"><strong>Snippet:</strong> {c.snippet}</p>
+                 <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200 mb-4">Relevant Cases ({sortedCases.length})</h3>
+                 <div className="space-y-4">
+                    {sortedCases.map(c => (
+                        <div key={c.citation} className="bg-slate-100 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
+                            <h4 className="font-bold text-slate-800 dark:text-slate-100">{c.caseName}</h4>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                <span>{c.citation}</span>
+                                <span>{c.court}</span>
+                                <span>Decided: {new Date(c.decisionDate).toLocaleDateString()}</span>
                             </div>
+                            <div className="mt-2 text-sm prose prose-slate dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: marked.parse(c.aiSummary) }}></div>
+                             <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-blue-600 hover:underline mt-2 inline-block">View on CourtListener &rarr;</a>
                         </div>
                     ))}
                  </div>
             </div>
         </div>
-    )
-}
+    );
+};
 
-const ResultCard: React.FC<{ title: string, children: React.ReactNode }> = ({ title, children }) => (
+const ResultCard: React.FC<{title: string, children: React.ReactNode}> = ({ title, children }) => (
     <div>
-        <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200 mb-3">{title}</h3>
+        <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200 mb-2">{title}</h3>
         <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
             {children}
         </div>
     </div>
 );
-
 
 export default CaseLawResearchTab;

@@ -1,6 +1,8 @@
 
+
 import React from 'react';
 import { FormData, SelectOption } from '../types';
+import SparklesIcon from './icons/SparklesIcon';
 
 interface DocumentFormProps {
   formData: FormData;
@@ -9,7 +11,10 @@ interface DocumentFormProps {
   isLoading: boolean;
   documentTypes: string[];
   usStates: SelectOption[];
-  optionalClauses: { id: keyof FormData['optionalClauses']; label: string; description: string }[];
+  optionalClauses: { id: string; label: string; description: string }[];
+  onGetSuggestions: () => void;
+  isLoadingSuggestions: boolean;
+  customDetailsPlaceholder: string;
 }
 
 const InputField: React.FC<{ id: string; label: string; value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; type?: string; placeholder?: string }> = ({ id, label, value, onChange, type = "text", placeholder }) => (
@@ -46,7 +51,7 @@ const SelectField: React.FC<{ id: string; label: string; value: string; onChange
   </div>
 );
 
-const DocumentForm: React.FC<DocumentFormProps> = ({ formData, onFormChange, onSubmit, isLoading, documentTypes, usStates, optionalClauses }) => {
+const DocumentForm: React.FC<DocumentFormProps> = ({ formData, onFormChange, onSubmit, isLoading, documentTypes, usStates, optionalClauses, onGetSuggestions, isLoadingSuggestions, customDetailsPlaceholder }) => {
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     onFormChange({ [e.target.name]: e.target.value });
@@ -74,7 +79,13 @@ const DocumentForm: React.FC<DocumentFormProps> = ({ formData, onFormChange, onS
       <InputField id="effectiveDate" label="Effective Date" type="date" value={formData.effectiveDate} onChange={handleInputChange} />
 
       <div>
-        <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">Optional Clauses</label>
+        <div className="flex justify-between items-center mb-2">
+            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Optional Clauses</label>
+            <button type="button" onClick={onGetSuggestions} disabled={isLoadingSuggestions} className="text-xs inline-flex items-center px-2 py-1 border border-transparent font-medium rounded-md shadow-sm text-white bg-slate-500 hover:bg-slate-600 disabled:bg-slate-300">
+                <SparklesIcon className="w-4 h-4 mr-1.5" />
+                {isLoadingSuggestions ? 'Thinking...' : 'AI Suggestions'}
+            </button>
+        </div>
         <div className="space-y-3">
           {optionalClauses.map(clause => (
             <div key={String(clause.id)} className="relative flex items-start">
@@ -83,7 +94,7 @@ const DocumentForm: React.FC<DocumentFormProps> = ({ formData, onFormChange, onS
                   id={String(clause.id)}
                   name={String(clause.id)}
                   type="checkbox"
-                  checked={formData.optionalClauses[clause.id]}
+                  checked={formData.optionalClauses[clause.id] || false}
                   onChange={handleCheckboxChange}
                   className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-slate-300 dark:border-slate-600 rounded"
                 />
@@ -106,7 +117,7 @@ const DocumentForm: React.FC<DocumentFormProps> = ({ formData, onFormChange, onS
               value={formData.customDetails}
               onChange={handleInputChange}
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:placeholder-slate-400 transition duration-150"
-              placeholder="e.g., Specific terms, project scope, payment details..."
+              placeholder={customDetailsPlaceholder}
           />
       </div>
 

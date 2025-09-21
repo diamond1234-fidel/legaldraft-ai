@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Matter, UserProfile, Page, Document, Note, Task, TimeEntry, Client, Invoice } from '../types';
 import Tabs from './Tabs';
@@ -43,7 +44,7 @@ const CaseDetailPage: React.FC<CaseDetailPageProps> = ({ matter, user, onNavigat
         return (
             <div>
                 <p>Error: Client for this matter could not be found.</p>
-                <button onClick={() => onNavigate('cases')}>Back to Matters</button>
+                <button onClick={() => onNavigate('matters')}>Back to Matters</button>
             </div>
         );
     }
@@ -71,7 +72,7 @@ const CaseDetailPage: React.FC<CaseDetailPageProps> = ({ matter, user, onNavigat
     return (
         <div className="space-y-6">
             <div>
-                <button onClick={() => onNavigate('cases')} className="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 mb-2">
+                <button onClick={() => onNavigate('matters')} className="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 mb-2">
                     &larr; {t('caseDetailBack')}
                 </button>
                 <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
