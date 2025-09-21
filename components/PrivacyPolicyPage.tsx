@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Page } from '../types';
 import { PublicHeader } from './PublicHeader';
@@ -13,7 +12,7 @@ const PrivacyPolicyPage: React.FC<{ onNavigate: (page: Page) => void }> = ({ onN
                     <p className="mt-4 text-lg text-slate-600 dark:text-slate-400">Last Updated: {new Date().toLocaleDateString()}</p>
 
                     <div className="prose prose-lg dark:prose-invert mt-12 max-w-none">
-                        <p>LegalDraft AI ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our Service.</p>
+                        <p>Our company ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our Service.</p>
 
                         <h2>1. Information We Collect</h2>
                         <p>We may collect personal information in the following ways:</p>

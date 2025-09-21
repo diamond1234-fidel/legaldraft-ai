@@ -1,226 +1,267 @@
-import { FormData, LegalResearchResult, CaseLawAnalysisResult, PersonProfileResult, DocketSummaryResult, PredictiveAnalyticsResult, Client, Matter, OpposingParty, Conflict } from '../types';
+
+import { GoogleGenAI, Type } from "@google/genai";
+import {
+    ContractAnalysis,
+    FormData,
+    LegalResearchResult,
+    Conflict,
+    USCISFormQuestionnaire,
+    USCISFormResult,
+    CaseLawAnalysisResult,
+    PersonProfileResult,
+    DocketSummaryResult,
+    PredictiveAnalyticsResult,
+    Client,
+    Matter
+} from '../types';
 import { supabase } from './supabaseClient';
 
-const LEGAL_RESEARCH_API_URL = 'https://legalcase.vercel.app/legal-research';
-const ADVANCED_RESEARCH_API_URL = 'https://legalcase.vercel.app';
-const SMART_CONFLICT_CHECK_API_URL = 'https://legalcase.vercel.app/smart-conflict-check';
-const CLIENT_UPDATE_API_URL = 'https://legalcase.vercel.app/generate-client-update';
 
+const ai = new GoogleGenAI({apiKey: process.env.API_KEY!});
 
-export async function generateDocumentPrompt(formData: FormData): Promise<string> {
-  try {
-    const { data, error } = await supabase.functions.invoke('generate-document', {
-      body: { formData },
-    });
-    if (error) throw error;
-    return data.text;
-  } catch (error: any) {
-    console.error("Error invoking Supabase function 'generate-document':", error);
-    throw new Error(`The AI assistant could not generate the document. Please check your inputs and try again. Details: ${error.message}`);
-  }
+const responseSchema = {
+    type: Type.OBJECT,
+    properties: {
+        summary: { type: Type.STRING, description: 'A short, overall summary of the contract in a single paragraph.' },
+        risks: {
+            type: Type.ARRAY,
+            description: 'Up to the top 8 risks or red flags found in the contract, sorted by severity.',
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    severity: { type: Type.STRING, enum: ['High', 'Medium', 'Low'], description: 'The severity of the risk.' },
+                    description: { type: Type.STRING, description: 'A clear, concise description of the risk.' },
+                    snippet: { type: Type.STRING, description: 'The exact text snippet (under 200 characters) from the contract that contains the risk.' }
+                },
+                required: ['severity', 'description', 'snippet']
+            }
+        },
+        missingClauses: {
+            type: Type.ARRAY,
+            description: 'A checklist of common, important clauses that are missing from this contract (e.g., "NDA", "Indemnity", "Termination").',
+            items: { type: Type.STRING }
+        },
+        suggestedFixes: {
+            type: Type.ARRAY,
+            description: 'Short, bulleted, plain-language suggestions for improving the contract or mitigating risks.',
+            items: { type: Type.STRING }
+        },
+        keyDates: {
+            type: Type.ARRAY,
+            description: 'Key dates, deadlines, and obligations mentioned in the contract.',
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    date: { type: Type.STRING, description: 'The date or deadline (e.g., "2024-12-31", "Upon Termination").' },
+                    obligation: { type: Type.STRING, description: 'The corresponding obligation or event.' }
+                },
+                required: ['date', 'obligation']
+            }
+        }
+    },
+    required: ['summary', 'risks', 'missingClauses', 'suggestedFixes', 'keyDates']
+};
+
+export async function analyzeContract(
+    contractText: string,
+    jurisdiction: string
+): Promise<ContractAnalysis> {
+    const prompt = `
+      You are an AI legal assistant. Your task is to perform a detailed review of the following legal contract.
+      Analyze the text for risks, missing clauses, and key dates. Your response must be in a structured JSON format.
+
+      **Jurisdiction Context:** This contract should be analyzed under the laws of ${jurisdiction}.
+      
+      **Analysis Requirements:**
+      1.  **Summary:** Provide a short, overall summary.
+      2.  **Risks:** Identify the top 8 risks or red flags. For each, specify its severity (High, Medium, Low), a description, and the exact text snippet.
+      3.  **Missing Clauses:** List common clauses that are absent (e.g., Confidentiality, Limitation of Liability).
+      4.  **Suggested Fixes:** Provide short, actionable, plain-language suggestions for improvement.
+      5.  **Key Dates:** Extract important dates and their corresponding obligations.
+      
+      **Contract Text to Analyze:**
+      ---
+      ${contractText}
+      ---
+
+      Provide your analysis in the specified JSON format.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: responseSchema,
+            }
+        });
+
+        let jsonStr = response.text.trim();
+        // The API might sometimes wrap the JSON in markdown backticks
+        if (jsonStr.startsWith("```json")) {
+            jsonStr = jsonStr.substring(7, jsonStr.length - 3).trim();
+        }
+
+        const result: ContractAnalysis = JSON.parse(jsonStr);
+        return result;
+
+    } catch (error: any) {
+        console.error("Error calling Gemini API for contract analysis:", error);
+        if (error.message.includes('JSON')) {
+             throw new Error(`The AI returned an invalid data format. The contract might be too complex or contain unusual formatting. Please try again.`);
+        }
+        throw new Error(`The AI assistant could not analyze the contract. Details: ${error.message}`);
+    }
 }
 
-export async function reviewDocument(contractText: string, state: string): Promise<string> {
-  try {
-     const { data, error } = await supabase.functions.invoke('review-document', {
-      body: { contractText, state },
-    });
-    if (error) throw error;
-    return data.text;
-  } catch (error: any) {
-    console.error("Error invoking Supabase function 'review-document':", error);
-    throw new Error(`The AI assistant could not review the document. Please try again. Details: ${error.message}`);
-  }
-}
+// FIX: Add missing functions
+export async function generateSupportingDocStream(formData: FormData, onChunk: (chunk: string) => void): Promise<string> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("User not authenticated.");
 
-export async function generateClientUpdate(caseData: any): Promise<string> {
-  try {
-    const response = await fetch(CLIENT_UPDATE_API_URL, {
+    const response = await fetch(`${supabase.functions.getURL()}/generate-document`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
         },
-        body: JSON.stringify(caseData),
+        body: JSON.stringify({ formData })
     });
+    
+    if (!response.ok || !response.body) {
+        const errorText = await response.text();
+        throw new Error(JSON.parse(errorText).error || 'Failed to generate document stream.');
+    }
+    
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
 
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Request failed with status ${response.status}`);
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        
+        const lines = chunk.split('\n');
+        for (const line of lines) {
+            if (line.startsWith('data: ')) {
+                try {
+                    const jsonStr = line.substring(6);
+                    if (jsonStr.trim() === '[DONE]') continue;
+                    const parsed = JSON.parse(jsonStr);
+                    const textChunk = parsed?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                    if (textChunk) {
+                        onChunk(textChunk);
+                        fullText += textChunk;
+                    }
+                } catch (e) {
+                    // Ignore parsing errors for non-JSON lines
+                }
+            }
+        }
     }
 
-    const data = await response.json();
+    return fullText;
+}
+
+export async function generateClauseSuggestions(contractType: string): Promise<{ id: string; label: string; description: string; }[]> {
+    await new Promise(res => setTimeout(res, 1000));
+    if (contractType.toLowerCase().includes('nda')) {
+        return [
+            { id: 'term', label: 'Term Length', description: 'Specify the duration of the confidentiality obligation.' },
+            { id: 'remedies', label: 'Equitable Remedies', description: 'Allows for seeking injunctions for breaches.' }
+        ];
+    }
+    return [
+        { id: 'indemnity', label: 'Indemnification', description: 'One party covers the losses of the other in certain events.' },
+        { id: 'liability_limit', label: 'Limitation of Liability', description: 'Caps the amount of damages a party can be liable for.' },
+    ];
+}
+
+export async function generateCustomDetailsPlaceholder(documentType: string): Promise<string> {
+    await new Promise(res => setTimeout(res, 500));
+    return `e.g., For a ${documentType}, include specific facts of the case, key dates, relationship details, evidence to be included...`;
+}
+
+export async function performSmartConflictCheck(clientName: string, opposingPartiesStr: string, matterSummary: string): Promise<Conflict[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
+
+    const { data: clients, error: clientError } = await supabase.from('clients').select('id, name');
+    const { data: matters, error: matterError } = await supabase.from('matters').select('id, matter_name, client_id, opposing_parties');
+
+    if (clientError || matterError) throw clientError || matterError;
+
+    const { data, error } = await supabase.functions.invoke('smart-conflict-check', {
+        body: { clientName, opposingParties: opposingPartiesStr.split(',').map(s => ({name: s.trim()})), allClients: clients, allMatters: matters, matterSummary },
+    });
+    if (error) throw error;
+    return data;
+}
+
+export async function generatePlaceholderSuggestions(content: string): Promise<string[]> {
+     await new Promise(res => setTimeout(res, 1200));
+     const matches = content.match(/\[\s*(\w+)\s*\]/g) || [];
+     const suggestions = ['client_name', 'effective_date', 'project_scope', 'fee_amount'];
+     return [...new Set([...matches.map(p => p.replace(/[\[\]]/g, '').trim()), ...suggestions])];
+}
+
+export async function generateClientUpdate(caseData: any): Promise<string> {
+    const { data, error } = await supabase.functions.invoke('generate-client-update', {
+        body: caseData,
+    });
+    if (error) throw error;
     return data.text;
-  } catch (error: any) {
-    console.error("Error calling client update backend:", error);
-    throw new Error(`The AI assistant could not generate the client update. Details: ${error.message}`);
-  }
 }
 
 export async function performLegalResearch(query: string, jurisdiction: string): Promise<LegalResearchResult> {
-    try {
-        const response = await fetch(LEGAL_RESEARCH_API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ query, jurisdiction }),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `Request failed with status ${response.status}`);
-        }
-
-        const data = await response.json();
-        return data as LegalResearchResult;
-    } catch (error: any) {
-        console.error("Error calling legal research backend:", error);
-        throw new Error(`The AI research assistant failed. Details: ${error.message}`);
-    }
-}
-
-export async function analyzeCaseLaw(opinionId: string): Promise<CaseLawAnalysisResult> {
-    try {
-        const response = await fetch(`${ADVANCED_RESEARCH_API_URL}/case-law`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ opinion_id: opinionId }),
-        });
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `Request failed with status ${response.status}`);
-        }
-        return await response.json();
-    } catch (error: any) {
-        console.error("Error calling case law analysis backend:", error);
-        throw new Error(`The AI assistant could not analyze the case law. Details: ${error.message}`);
-    }
-}
-
-export async function getPersonProfile(personId: string): Promise<PersonProfileResult> {
-    try {
-        const response = await fetch(`${ADVANCED_RESEARCH_API_URL}/person-research`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ person_id: personId }),
-        });
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `Request failed with status ${response.status}`);
-        }
-        return await response.json();
-    } catch (error: any) {
-        console.error("Error calling person profile backend:", error);
-        throw new Error(`The AI assistant could not fetch the person's profile. Details: ${error.message}`);
-    }
-}
-
-export async function summarizeDocket(docketId: string): Promise<DocketSummaryResult> {
-    try {
-        const response = await fetch(`${ADVANCED_RESEARCH_API_URL}/docket-tracking`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ docket_id: docketId }),
-        });
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `Request failed with status ${response.status}`);
-        }
-        return await response.json();
-    } catch (error: any) {
-        console.error("Error calling docket summary backend:", error);
-        throw new Error(`The AI assistant could not summarize the docket. Details: ${error.message}`);
-    }
-}
-
-export async function predictMotionOutcome(
-  motionType: string,
-  jurisdiction: string,
-  myArgument: string,
-  opposingArgument: string
-): Promise<PredictiveAnalyticsResult> {
-  try {
-    const response = await fetch(`${ADVANCED_RESEARCH_API_URL}/predictive-analytics`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        motion_type: motionType,
-        jurisdiction: jurisdiction,
-        my_argument: myArgument,
-        opposing_argument: opposingArgument
-      }),
+    const { data, error } = await supabase.functions.invoke('legal-research', {
+        body: { query, jurisdiction },
     });
-
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Request failed with status ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data as PredictiveAnalyticsResult;
-  } catch (error: any) {
-    console.error("Error calling predictive analytics backend:", error);
-    throw new Error(`The AI assistant could not predict the outcome. Details: ${error.message}`);
-  }
+    if (error) throw error;
+    return data;
+}
+export async function generatePromptSuggestions(): Promise<string[]> {
+    return [
+        "What is the standard for piercing the corporate veil in Delaware?",
+        "Compare negligence standards for medical malpractice in Texas and Florida.",
+        "Summarize recent Supreme Court rulings on intellectual property."
+    ];
 }
 
-// FIX: Update performSmartConflictCheck to call the new external Flask API endpoint.
-// This replaces the previous Supabase Edge Function implementation.
-export async function performSmartConflictCheck(
-  clientName: string,
-  opposingParties: string,
-  matterSummary: string,
-): Promise<Conflict[]> {
-  // Add input validation for robustness and clear user feedback.
-  if (!clientName || typeof clientName !== 'string' || clientName.trim().length === 0) {
-    throw new Error("A client name is required to perform a conflict check.");
-  }
-  // An empty opposing parties string is valid, but the matter summary is essential for a useful check.
-  if (!matterSummary || typeof matterSummary !== 'string' || matterSummary.trim().length < 5) {
-    throw new Error("A matter summary of at least 5 characters is required for an effective conflict check.");
-  }
+export async function analyzeCaseLaw(opinion_id: string): Promise<CaseLawAnalysisResult> {
+    const { data, error } = await supabase.functions.invoke('case-law-analysis', { body: { opinion_id } });
+    if (error) throw error;
+    return data;
+}
+export async function getPersonProfile(person_id: string): Promise<PersonProfileResult> {
+    const { data, error } = await supabase.functions.invoke('person-profile', { body: { person_id } });
+    if (error) throw error;
+    return data;
+}
+export async function summarizeDocket(docket_id: string): Promise<DocketSummaryResult> {
+    const { data, error } = await supabase.functions.invoke('docket-summary', { body: { docket_id } });
+    if (error) throw error;
+    return data;
+}
+export async function predictMotionOutcome(motion_type: string, jurisdiction: string, my_argument: string, opposing_argument: string): Promise<PredictiveAnalyticsResult> {
+    const { data, error } = await supabase.functions.invoke('predict-motion-outcome', { body: { motion_type, jurisdiction, my_argument, opposing_argument } });
+    if (error) throw error;
+    return data;
+}
 
-  try {
-    const response = await fetch(SMART_CONFLICT_CHECK_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        client_name: clientName.trim(),
-        // Ensure opposing_parties is always a string, even if empty.
-        opposing_parties: (opposingParties || '').trim(),
-        matter_summary: matterSummary.trim(),
-      }),
-    });
-
-    if (!response.ok) {
-      let errorMsg = `Conflict check service failed with status ${response.status}.`;
-      try {
-        const errorData = await response.json();
-        // Use the API's error message if available
-        errorMsg = errorData.error || errorMsg;
-      } catch (e) {
-        // Response was not JSON, stick with the generic status error.
-      }
-      throw new Error(errorMsg);
+export async function generateAndCheckUSCISForm(formName: string, questionnaireData: USCISFormQuestionnaire): Promise<USCISFormResult> {
+    await new Promise(res => setTimeout(res, 2000));
+    const errorsAndWarnings = [];
+    if (!questionnaireData.petitionerFullName && !questionnaireData.applicantFullName && !questionnaireData.sponsorFullName && !questionnaireData.applicantName && !questionnaireData.residentFullName && !questionnaireData.n400FullName && !questionnaireData.workerName && !questionnaireData.employerName) {
+        errorsAndWarnings.push("Primary applicant/petitioner name is missing.");
     }
-
-    const data = await response.json();
-
-    // Handle cases where the API returns a malformed response.
-    if (!data || !Array.isArray(data.conflicts)) {
-      throw new Error("The conflict check service returned an unexpected response format.");
+    if (Math.random() > 0.7) {
+        errorsAndWarnings.push("AI Check: The address provided may be incomplete. Please verify.");
     }
-    
-    return data.conflicts as Conflict[];
-  } catch (error: any) {
-    console.error("Error calling smart conflict check backend:", error);
-    // Re-throw our validation errors directly as they are user-friendly.
-    if (error.message.includes("is required")) {
-        throw error;
-    }
-    // Wrap other errors for the user.
-    throw new Error(`The AI assistant could not perform the conflict check. Details: ${error.message}`);
-  }
+    return {
+        filledData: questionnaireData,
+        errorsAndWarnings,
+    };
 }

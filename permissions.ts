@@ -12,6 +12,15 @@ export interface RolePermissions {
 }
 
 export const ROLES_PERMISSIONS: Record<UserRole, RolePermissions> = {
+  user: {
+    canAccessBilling: true,
+    canAccessAdmin: false,
+    canDraft: true,
+    canReview: true,
+    canResearch: false,
+    canPerformIntake: false,
+    canManageClients: false,
+  },
   lawyer: {
     canAccessBilling: true,
     canAccessAdmin: false,

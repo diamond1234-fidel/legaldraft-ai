@@ -17,18 +17,19 @@ const DemoPage: React.FC<{ onNavigate: (page: Page) => void }> = ({ onNavigate }
                  <div className="max-w-4xl w-full grid lg:grid-cols-2 gap-16 items-center">
                     <div className="hidden lg:block">
                         <h1 className="text-4xl font-extrabold text-slate-800 dark:text-slate-100 tracking-tighter">See AI in Action</h1>
-                        <p className="mt-4 text-slate-600 dark:text-slate-400">A personalized demo is the best way to see how LegalDraft AI can be tailored to your practice's specific needs.</p>
+                        <p className="mt-4 text-slate-600 dark:text-slate-400">A personalized demo is the best way to see how our platform can be tailored to your practice's specific needs.</p>
                         <ul className="mt-6 space-y-4">
+                            <DemoBenefit point="Unify your entire practice, from intake to invoice." />
                             <DemoBenefit point="Draft a state-specific contract in under 5 minutes." />
                             <DemoBenefit point="Analyze a complex document for risks instantly." />
-                            <DemoBenefit point="Streamline your client intake and case management." />
+                            <DemoBenefit point="See how our smart conflict check protects your firm." />
                             <DemoBenefit point="Get your specific questions answered by an expert." />
                         </ul>
                     </div>
                      <div>
                         <div className="text-center lg:hidden mb-10">
                             <h1 className="text-4xl md:text-5xl font-extrabold text-slate-800 dark:text-slate-100 tracking-tighter">Schedule a Live Demo</h1>
-                            <p className="mt-4 max-w-2xl mx-auto text-lg text-slate-600 dark:text-slate-400">See LegalDraft AI in action. Get a personalized tour of our platform and have your questions answered by our team.</p>
+                            <p className="mt-4 max-w-2xl mx-auto text-lg text-slate-600 dark:text-slate-400">Get a personalized tour of our platform and have your questions answered by our team.</p>
                         </div>
                         <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700">
                             {submitted ? (

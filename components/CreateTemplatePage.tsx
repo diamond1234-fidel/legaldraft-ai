@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Template } from '../types';
 import ErrorAlert from './ErrorAlert';
+import { generatePlaceholderSuggestions } from '../services/geminiService';
+import SparklesIcon from './icons/SparklesIcon';
 
 declare const EasyMDE: any;
 
@@ -16,6 +18,8 @@ const CreateTemplatePage: React.FC<CreateTemplatePageProps> = ({ onSave, existin
     const [error, setError] = useState<string | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const easymdeInstance = useRef<any>(null);
+    const [placeholderSuggestions, setPlaceholderSuggestions] = useState<string[]>([]);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
 
     // Effect to handle initialization and cleanup of the editor
     useEffect(() => {
@@ -113,6 +117,28 @@ const CreateTemplatePage: React.FC<CreateTemplatePageProps> = ({ onSave, existin
             setError(e instanceof Error ? e.message : 'An unexpected error occurred while saving.');
         }
     };
+    
+    const handleAnalyzeContent = async () => {
+        if (!content.trim()) return;
+        setIsAnalyzing(true);
+        setError(null);
+        try {
+            const suggestions = await generatePlaceholderSuggestions(content);
+            setPlaceholderSuggestions(suggestions);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Failed to analyze content.');
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
+    const insertPlaceholder = (placeholder: string) => {
+        if (easymdeInstance.current) {
+            const cm = easymdeInstance.current.codemirror;
+            cm.replaceSelection(`{{${placeholder}}}`);
+            cm.focus();
+        }
+    };
 
     return (
         <div className="max-w-4xl mx-auto">
@@ -124,7 +150,7 @@ const CreateTemplatePage: React.FC<CreateTemplatePageProps> = ({ onSave, existin
             </p>
 
             <form onSubmit={handleSubmit} className="mt-8 bg-white dark:bg-slate-800 p-8 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 space-y-6">
-                {error && <div className="mb-4"><ErrorAlert message={error} title="Save Failed" /></div>}
+                {error && <div className="mb-4"><ErrorAlert message={error} title="Error" /></div>}
                 <div>
                     <label htmlFor="templateName" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Template Name</label>
                     <input type="text" id="templateName" value={name} onChange={e => setName(e.target.value)} required className="w-full input-field" placeholder="e.g., Standard Freelancer NDA" />
@@ -134,11 +160,29 @@ const CreateTemplatePage: React.FC<CreateTemplatePageProps> = ({ onSave, existin
                     <input type="text" id="templateDescription" value={description} onChange={e => setDescription(e.target.value)} className="w-full input-field" placeholder="A brief summary of what this template is for." />
                 </div>
                 <div>
-                    <label htmlFor="templateContent" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Template Content</label>
+                    <div className="flex justify-between items-center mb-1">
+                        <label htmlFor="templateContent" className="block text-sm font-medium text-slate-600 dark:text-slate-300">Template Content</label>
+                        <button type="button" onClick={handleAnalyzeContent} disabled={isAnalyzing} className="text-xs inline-flex items-center px-2 py-1 border border-transparent font-medium rounded-md shadow-sm text-white bg-slate-500 hover:bg-slate-600 disabled:bg-slate-300">
+                            <SparklesIcon className="w-4 h-4 mr-1.5" />
+                            {isAnalyzing ? 'Analyzing...' : 'Analyze for Placeholders'}
+                        </button>
+                    </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
                         {'Use double curly braces for placeholders, e.g., `{{client_name}}`, `{{effective_date}}`. These will be highlighted.'}
                     </p>
                     <textarea id="templateContent" ref={textareaRef} defaultValue={content} />
+                    {placeholderSuggestions.length > 0 && (
+                        <div className="mt-2 p-2 bg-slate-100 dark:bg-slate-700/50 rounded-md">
+                            <p className="text-xs font-semibold mb-1 text-slate-600 dark:text-slate-300">AI Suggestions (click to insert):</p>
+                            <div className="flex flex-wrap gap-2">
+                                {placeholderSuggestions.map(p => (
+                                    <button type="button" key={p} onClick={() => insertPlaceholder(p)} className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 rounded-md hover:bg-blue-200 dark:hover:bg-blue-800">
+                                        {`{{${p}}}`}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
                 <button type="submit" className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
                     {existingTemplate ? 'Save Changes' : 'Create Template'}

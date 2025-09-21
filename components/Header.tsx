@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import SunIcon from './icons/SunIcon';
 import MoonIcon from './icons/MoonIcon';
@@ -14,7 +15,7 @@ interface HeaderProps {
     onNavigate: (page: Page) => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ isDarkMode, toggleDarkMode, setSidebarOpen, notifications, onMarkNotificationRead, onNavigate }) => {
+const Header: React.FC<HeaderProps> = ({ isDarkMode, toggleDarkMode, setSidebarOpen, notifications, onMarkNotificationRead }) => {
     const [isNotificationsOpen, setNotificationsOpen] = useState(false);
     const notificationRef = useRef<HTMLDivElement>(null);
 
@@ -29,15 +30,6 @@ const Header: React.FC<HeaderProps> = ({ isDarkMode, toggleDarkMode, setSidebarO
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
-
-    const handleNavigateAndClose = (path: string) => {
-        // This is a simplified navigation handler for notifications
-        if (path.startsWith('cases/')) {
-            // In a real app, you would fetch the matter and navigate
-            onNavigate('cases');
-        }
-        setNotificationsOpen(false);
-    }
 
   return (
     <header className="flex-shrink-0 bg-white dark:bg-slate-800/80 dark:backdrop-blur-lg shadow-sm border-b border-slate-200 dark:border-slate-700">
@@ -61,8 +53,7 @@ const Header: React.FC<HeaderProps> = ({ isDarkMode, toggleDarkMode, setSidebarO
                     {isNotificationsOpen && (
                         <NotificationsPanel 
                             notifications={notifications} 
-                            onMarkAsRead={onMarkNotificationRead} 
-                            onNavigate={handleNavigateAndClose}
+                            onMarkAsRead={onMarkNotificationRead}
                         />
                     )}
                 </div>

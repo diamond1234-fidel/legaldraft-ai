@@ -1,5 +1,7 @@
 {
-  "name": "AI Contract & Document Drafting Assistant",
-  "description": "An intelligent web application that helps users generate various legal documents and contracts. It incorporates state-specific clauses, allows for user customization, and provides lawyer-friendly formatting with export options to Word and PDF.",
-  "requestFramePermissions": []
+  "name": "Contract Review AI",
+  "description": "An AI-powered platform to upload contracts, get a summary, identify risks, find missing clauses, and suggest improvements. Built for founders, lawyers, and anyone dealing with contracts.",
+  "requestFramePermissions": [
+    "camera"
+  ]
 }

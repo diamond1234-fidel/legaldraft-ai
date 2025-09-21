@@ -1,46 +1,39 @@
+
 import React, { useState, useEffect } from 'react';
-// FIX: Changed to a non-type-only import for Session, which may resolve type resolution issues with older bundlers or configurations.
-import { Session } from '@supabase/supabase-js';
-import { AppState, Page, UserRole, Matter, Document, Template, UserProfile, Client, Json, Note, Task, TimeEntry, Notification, Profile, PaymentSettings, Invoice, InvoiceSettings } from './types';
+import type { Session } from '@supabase/supabase-js';
+import { v4 as uuidv4 } from 'uuid';
+import { AppState, Page, Document, Template, UserProfile, Notification, Json, ContractAnalysis } from './types';
 import LandingPage from './components/LandingPage';
 import LoginPage from './components/LoginPage';
 import Dashboard from './components/Dashboard';
 import BillingPage from './components/BillingPage';
-import DisclaimerBanner from './components/DisclaimerBanner';
 import Header from './components/Header';
 import PricingPage from './components/PricingPage';
 import SignupPage from './components/SignupPage';
 import ForgotPasswordPage from './components/ForgotPasswordPage';
-import DraftContractPage from './components/DraftContractPage';
 import ReviewContractPage from './components/ReviewContractPage';
 import SavedDocumentsPage from './components/SavedDocumentsPage';
 import SupportPage from './components/SupportPage';
 import Footer from './components/Footer';
-import LegalResearchPage from './components/LegalResearchPage';
-import ClientIntakePage from './components/ClientIntakePage';
 import ViewDocumentPage from './components/ViewDocumentPage';
-import { ROLES_PERMISSIONS } from './permissions';
 import CreateTemplatePage from './components/CreateTemplatePage';
 import TemplateManagerPage from './components/TemplateManagerPage';
 import FeaturesPage from './components/FeaturesPage';
 import TestimonialsPage from './components/TestimonialsPage';
 import DemoPage from './components/DemoPage';
 import { supabase } from './services/supabaseClient';
-import ClientListPage from './components/ClientListPage';
-import ClientDetailPage from './components/ClientDetailPage';
-import CaseListPage from './components/CaseListPage';
-import CaseDetailPage from './components/CaseDetailPage';
 import Sidebar from './components/Sidebar';
 import TermsOfServicePage from './components/TermsOfServicePage';
 import PrivacyPolicyPage from './components/PrivacyPolicyPage';
+import AboutPage from './components/AboutPage';
+import SecurityPage from './components/SecurityPage';
 import DisclaimerPage from './components/DisclaimerPage';
-import SqlEditorPage from './components/SqlEditorPage';
-import TaskListPage from './components/TaskListPage';
-import AdvancedResearchPage from './components/AdvancedResearchPage';
-import TeamManagementPage from './components/TeamManagementPage';
-import ReportsPage from './components/ReportsPage';
-import PaymentSettingsPage from './components/PaymentSettingsPage';
-import InvoiceSettingsPage from './components/InvoiceSettingsPage';
+import DisclaimerBanner from './components/DisclaimerBanner';
+import RoadmapPage from './components/RoadmapPage';
+import InternalRoadmapPage from './components/InternalRoadmapPage';
+import { BACKEND_URL } from './constants';
+
+declare const PaystackPop: any;
 
 const initialAppState: AppState = {
     isAuthenticated: false,
@@ -48,15 +41,10 @@ const initialAppState: AppState = {
     user: null,
     viewingDocument: null,
     editingTemplate: null,
-    viewingClient: null,
-    viewingMatter: null,
 };
 
-const App: React.FC = () => (
-    <AppContent />
-);
-
-const AppContent: React.FC = () => {
+// FIX: Changed to a named export to resolve the "no default export" error in index.tsx.
+export const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(initialAppState);
   const [session, setSession] = useState<Session | null>(null);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
@@ -72,11 +60,9 @@ const AppContent: React.FC = () => {
   });
 
   useEffect(() => {
-    // FIX: Corrected destructuring for onAuthStateChange to match Supabase v2, which returns { data: { subscription } }.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
     })
-
     return () => subscription?.unsubscribe()
   }, [])
   
@@ -108,7 +94,6 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (session) {
         const fetchFullUserData = async () => {
-            // FIX: `session.user` from onAuthStateChange contains all necessary user data in Supabase v2.
             await fetchUserData(session.user.id, session.user.email, session.user.user_metadata);
         };
         fetchFullUserData();
@@ -118,8 +103,12 @@ const AppContent: React.FC = () => {
     }
   }, [session]);
 
+  const fetchUserData = async (userId: string, emailFromSession?: string, userMetadata: any = {}) => {
+    // Get the authoritative user object to ensure email is present, as the session
+    // object's email can be missing immediately after signup.
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const email = authUser?.email || emailFromSession; // Prioritize fresh auth user email
 
-  const fetchUserData = async (userId: string, email?: string, userMetadata: any = {}) => {
     let { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
@@ -129,70 +118,26 @@ const AppContent: React.FC = () => {
     if (profileError || !profile) {
         if (profileError) console.error("Error fetching profile, creating one...", profileError.message);
         
-        // Create a profile if it doesn't exist (error code for "not found")
         if (profileError?.code === 'PGRST116') {
              const { data: newProfile, error: insertError } = await supabase
                 .from('profiles')
                 .insert({ 
                     id: userId, 
-                    email, 
+                    email, // Use the more reliable email
                     full_name: userMetadata.full_name,
-                    role: userMetadata.account_type === 'firm' ? 'admin' : 'lawyer', 
-                    subscription_status: 'trial', 
-                    jurisdiction: userMetadata.jurisdiction,
-                    firm_id: userMetadata.account_type === 'firm' ? userId : null // Admin's firm_id is their own ID
+                    role: userMetadata.account_type || 'user', 
+                    subscription_status: userMetadata.subscription_status || 'trial',
                 })
                 .select()
                 .single();
 
             if (insertError) {
                 console.error("Error creating profile:", insertError.message);
-                return; // Stop execution if profile creation fails
+                return;
             }
-            // Use the newly created profile for the rest of the function
             profile = newProfile;
         } else {
-            // A different error occurred during fetch, so we can't proceed
             return;
-        }
-    }
-    
-    // Sync role from auth metadata if it exists and differs from the profile.
-    if (userMetadata.account_type && profile) {
-        const expectedRole = userMetadata.account_type === 'firm' ? 'admin' : 'lawyer';
-        if (profile.role !== expectedRole) {
-            console.log(`Role mismatch: Auth metadata implies '${expectedRole}', but profile has '${profile.role}'. Syncing...`);
-            const { data: updatedProfile, error: updateError } = await supabase
-                .from('profiles')
-                .update({ role: expectedRole })
-                .eq('id', userId)
-                .select()
-                .single();
-            
-            if (updateError) {
-                console.error("Error syncing user role:", updateError.message);
-            } else if (updatedProfile) {
-                profile = updatedProfile; // Use the fresh profile data for the rest of this function call
-                console.log("User role successfully synced.");
-            }
-        }
-    }
-    
-    // Data integrity check: Ensure firm admins have a firm_id.
-    if (profile && profile.role === 'admin' && !profile.firm_id) {
-        console.log(`Data integrity issue: Admin user ${profile.id} is missing a firm_id. Patching...`);
-        const { data: patchedProfile, error: patchError } = await supabase
-            .from('profiles')
-            .update({ firm_id: profile.id }) // An admin's firm_id is their own ID.
-            .eq('id', profile.id)
-            .select()
-            .single();
-
-        if (patchError) {
-            console.error("Error patching admin's firm_id:", patchError.message);
-        } else if (patchedProfile) {
-            profile = patchedProfile; // Use the patched profile data.
-            console.log("Admin's firm_id successfully patched.");
         }
     }
     
@@ -200,58 +145,50 @@ const AppContent: React.FC = () => {
       console.error("Could not fetch or create a user profile. Aborting data load.");
       return;
     }
-    
-    // Fetch all data related to the firm if user is part of one, otherwise just their own data.
-    const firmId = profile.firm_id;
-    const { data: teamMembers } = firmId ? await supabase.from('profiles').select('*').eq('firm_id', firmId).neq('id', userId) : { data: [] };
-    
-    const userIds = firmId ? [userId, ...(teamMembers || []).map(m => m.id)] : [userId];
 
-    const { data: documents } = await supabase.from('documents').select('*').in('user_id', userIds).order('created_at', { ascending: false });
-    const { data: templates } = await supabase.from('templates').select('*').in('user_id', userIds).order('created_at', { ascending: false });
-    const { data: clients } = await supabase.from('clients').select('*').in('user_id', userIds).order('name', { ascending: true });
-    const { data: matters } = await supabase.from('matters').select('*').in('user_id', userIds).order('created_at', { ascending: false });
-    const { data: tasks } = await supabase.from('tasks').select('*').in('user_id', userIds).order('due_date', { ascending: true });
-    const { data: notes } = await supabase.from('notes').select('*').in('user_id', userIds).order('created_at', { ascending: false });
-    const { data: timeEntries } = await supabase.from('time_entries').select('*').in('user_id', userIds).order('date', { ascending: false });
-    const { data: evidence } = await supabase.from('evidence').select('*').in('user_id', userIds).order('created_at', { ascending: false });
+    // This handles the edge case where a profile was created with a null email
+    // before the user confirmed their account. This will backfill the email on their next login.
+    if (!profile.email && email) {
+        const { data: updatedProfile, error: updateError } = await supabase
+            .from('profiles')
+            .update({ email: email })
+            .eq('id', userId)
+            .select()
+            .single();
+        
+        if (updateError) {
+            console.warn("Could not backfill email in profile:", updateError.message);
+        } else if (updatedProfile) {
+            profile = updatedProfile;
+        }
+    }
+
+    const { data: documents } = await supabase.from('documents').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+    const { data: templates } = await supabase.from('templates').select('*').eq('user_id', userId).order('created_at', { ascending: false });
     const { data: notifications } = await supabase.from('notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false });
-
-    // Mock payment and invoice settings as there are no DB tables for them
-    const paymentSettings: PaymentSettings = appState.user?.payment_settings || {
-        stripe: { connected: false, publishableKey: null },
-        paypal: { connected: false, clientId: null },
-        bankTransfer: { enabled: false, instructions: null },
-    };
-     const invoiceSettings: InvoiceSettings = appState.user?.invoice_settings || {
-        template: 'modern',
-        accentColor: '#3b82f6',
-        logoUrl: null,
-        fromAddress: "123 Law Lane\nLegal City, LS 54321\nUnited States",
-        notes: "Thank you for your business. Please remit payment within 30 days."
-    };
 
     const userProfile: UserProfile = {
         ...userMetadata,
         ...profile,
-        email: email || profile.email || '',
+        email: email || profile.email || '', // Now uses a reliable email source
         subscription_status: profile.subscription_status as any || 'trial',
-        role: profile.role as any || 'lawyer',
+        role: profile.role as any || 'user',
         documents: documents || [],
         templates: templates || [],
-        clients: clients || [],
-        matters: matters || [],
-        tasks: tasks || [],
-        notes: notes || [],
-        timeEntries: timeEntries || [],
-        evidence: evidence || [],
         notifications: notifications || [],
-        teamMembers: (teamMembers as Profile[]) || [],
-        usage: { drafted: (documents || []).filter(d => d.status === 'drafted').length, reviewed: (documents || []).filter(d => d.status === 'reviewed').length },
-        researchLogs: [], // Mocked for now
-        payment_settings: paymentSettings,
-        invoice_settings: invoiceSettings,
-        invoices: appState.user?.invoices || [], // Mocked for now
+        usage: { analyzed: (documents || []).length },
+        // Add defaults for new properties
+        clients: [],
+        matters: [],
+        notes: [],
+        tasks: [],
+        timeEntries: [],
+        invoices: [],
+        i9Records: [],
+        eVerifyCases: [],
+        teamMembers: [],
+        payment_settings: { stripe: { connected: false, publishableKey: ''}, paypal: { connected: false, clientId: ''}, bankTransfer: { enabled: false, instructions: ''}},
+        invoice_settings: { template: 'modern', accentColor: '#3b82f6', logoUrl: '', fromAddress: '', notes: 'Thank you for your business.'},
     };
 
     setAppState(prevState => ({ ...prevState, user: userProfile }));
@@ -272,13 +209,12 @@ const AppContent: React.FC = () => {
   }, [isDarkMode]);
 
   const handleNavigate = (page: Page) => {
-    setAppState(prevState => ({ ...prevState, currentPage: page, editingTemplate: null, viewingClient: null, viewingMatter: null }));
-    setSidebarOpen(false); // Close sidebar on navigation
+    setAppState(prevState => ({ ...prevState, currentPage: page, editingTemplate: null }));
+    setSidebarOpen(false);
   };
 
   const handleLogout = async () => {
     try {
-      // FIX: The `signOut` method is correct for modern Supabase.
       await supabase.auth.signOut();
       setAppState(initialAppState);
     } catch (error) {
@@ -287,172 +223,105 @@ const AppContent: React.FC = () => {
     }
   };
   
-   const handleViewClient = (client: Client) => {
-    setAppState(prevState => ({ ...prevState, currentPage: 'viewClient', viewingClient: client }));
-  };
-
-  const handleViewCase = (matter: Matter) => {
-    setAppState(prevState => ({ ...prevState, currentPage: 'viewCase', viewingMatter: matter }));
-  };
-
-  const addClient = async (clientData: Omit<Client, 'id' | 'created_at' | 'user_id'>): Promise<Client> => {
-    if (!session) throw new Error("User not logged in");
-    const newClientPayload = { ...clientData, user_id: session.user.id };
-    const { data, error } = await supabase.from('clients').insert(newClientPayload).select().single();
-    if (error || !data) { throw new Error(error?.message || "Failed to save client"); }
-    await fetchUserData(session.user.id, session.user.email);
-    return data as Client;
-  };
-  
-  const updateClient = async (updatedClient: Client): Promise<void> => {
-    const { error } = await supabase.from('clients').update(updatedClient).eq('id', updatedClient.id);
-    if (error) { throw new Error("Failed to save changes to the client."); }
-    await fetchUserData(session!.user.id, session!.user.email);
-  };
-  
-  const deleteClient = async (clientId: string): Promise<void> => {
-    const mattersForClient = appState.user?.matters.filter(m => m.client_id === clientId) || [];
-    if (mattersForClient.length > 0) {
-        throw new Error("Cannot delete a client that has associated matters. Please delete the matters first.");
+  const handleCheckout = async (planCode: string) => {
+    if (!appState.user) {
+        throw new Error("Please log in to choose a plan.");
     }
-    const { error } = await supabase.from('clients').delete().eq('id', clientId);
-    if (error) { throw new Error("Failed to delete the client."); }
-    await fetchUserData(session!.user.id, session!.user.email);
-    handleNavigate('clients');
-  };
-
-  const addMatter = async (matterData: Omit<Matter, 'id' | 'created_at' | 'user_id' | 'status'>): Promise<Matter> => {
-    if (!session) throw new Error("User not logged in");
-    const newMatterPayload = { ...matterData, status: 'open' as 'open' | 'closed', user_id: session.user.id };
-    const { data, error } = await supabase.from('matters').insert(newMatterPayload).select().single();
-    if (error || !data) { throw new Error(error?.message || "Failed to save matter"); }
-    await fetchUserData(session.user.id, session.user.email);
-    return data as Matter;
-  };
-  
-  const updateMatter = async (updatedMatter: Matter): Promise<void> => {
-    const { error } = await supabase.from('matters').update(updatedMatter).eq('id', updatedMatter.id);
-    if (error) { throw new Error("Failed to save changes to the matter."); }
-    await fetchUserData(session!.user.id, session!.user.email);
-  };
-  
-  const deleteMatter = async (matterId: string): Promise<void> => {
-    // Manually cascade deletes for safety, assuming no DB cascade is set up
-    await supabase.from('time_entries').delete().eq('matter_id', matterId);
-    await supabase.from('tasks').delete().eq('matter_id', matterId);
-    await supabase.from('notes').delete().eq('matter_id', matterId);
-    await supabase.from('documents').delete().eq('matter_id', matterId);
     
-    const { error } = await supabase.from('matters').delete().eq('id', matterId);
-    if (error) { throw new Error("Failed to delete the matter."); }
-    await fetchUserData(session!.user.id, session!.user.email);
-    handleNavigate('cases');
-  };
+    // FIX: Directly fetch the authenticated user to ensure the most up-to-date email is used.
+    // This prevents issues where the email might be missing from the local state immediately after signup.
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const userEmail = authUser?.email || appState.user.email;
 
-  const addNote = async (noteData: Omit<Note, 'id' | 'created_at' | 'user_id'>): Promise<Note> => {
-    if (!session) throw new Error("User not logged in");
-    const newNotePayload = { ...noteData, user_id: session.user.id };
-    const { data, error } = await supabase.from('notes').insert(newNotePayload).select().single();
-    if (error || !data) { throw new Error(error?.message || "Failed to save note"); }
-    await fetchUserData(session.user.id, session.user.email);
-    return data as Note;
-  };
-  
-  const updateNote = async (updatedNote: Note): Promise<void> => {
-    const { error } = await supabase.from('notes').update(updatedNote).eq('id', updatedNote.id);
-    if (error) { throw new Error("Failed to save changes to the note."); }
-    await fetchUserData(session!.user.id, session!.user.email);
-  };
-  
-  const deleteNote = async (noteId: string): Promise<void> => {
-    const { error } = await supabase.from('notes').delete().eq('id', noteId);
-    if (error) { throw new Error("Failed to delete the note."); }
-    await fetchUserData(session!.user.id, session!.user.email);
-  };
+    if (!userEmail) {
+        throw new Error("Your email address could not be found. Please ensure your email is confirmed or try logging out and back in.");
+    }
 
-  const addTask = async (taskData: Omit<Task, 'id' | 'created_at' | 'user_id'>): Promise<Task> => {
-    if (!session) throw new Error("User not logged in");
-    const newTaskPayload = { ...taskData, user_id: session.user.id };
-    const { data, error } = await supabase.from('tasks').insert(newTaskPayload).select().single();
-    if (error || !data) { throw new Error(error?.message || "Failed to save task"); }
-    await fetchUserData(session.user.id, session.user.email);
-    return data as Task;
-  };
-
-  const updateTask = async (updatedTask: Omit<Task, 'created_at' | 'user_id'>): Promise<void> => {
-      const { error } = await supabase.from('tasks').update(updatedTask).eq('id', updatedTask.id);
-      if (error) { throw new Error("Failed to save changes to the task."); }
-      await fetchUserData(session!.user.id, session!.user.email);
-  };
-
-  const deleteTask = async (taskId: string): Promise<void> => {
-      const { error } = await supabase.from('tasks').delete().eq('id', taskId);
-      if (error) { throw new Error('Failed to delete the task. Please try again.'); }
-      await fetchUserData(session!.user.id, session!.user.email);
-  };
-  
-  const addTimeEntry = async (entryData: Omit<TimeEntry, 'id' | 'created_at' | 'user_id' | 'is_billed'>): Promise<void> => {
-      if (!session) throw new Error("User not logged in");
-      const { error } = await supabase.from('time_entries').insert({ ...entryData, user_id: session.user.id });
-      if (error) { throw new Error(error.message || "Failed to save time entry."); }
-      await fetchUserData(session.user.id, session.user.email);
-  };
-
-  const updateTimeEntry = async (updatedEntry: Omit<TimeEntry, 'created_at' | 'user_id'>): Promise<void> => {
-      if (!session) throw new Error("User not logged in");
-      const { error } = await supabase.from('time_entries').update(updatedEntry).eq('id', updatedEntry.id);
-      if (error) { throw new Error("Failed to update time entry."); }
-      await fetchUserData(session.user.id, session.user.email);
-  };
-  
-  const deleteTimeEntry = async (entryId: string): Promise<void> => {
-    const { error } = await supabase.from('time_entries').delete().eq('id', entryId);
-    if (error) { throw new Error("Failed to delete the time entry."); }
-    await fetchUserData(session!.user.id, session!.user.email);
-  };
-
-  const addInvoice = async (invoice: Invoice): Promise<void> => {
-    // Mock implementation, saves to local state
-    if (!appState.user) return;
-    setAppState(prev => ({
-        ...prev,
-        user: { ...prev.user!, invoices: [...prev.user!.invoices, invoice] }
-    }));
-  };
-  
-  const updateInvoice = async (updatedInvoice: Invoice): Promise<void> => {
-    // Mock implementation, updates local state
-    if (!appState.user) return;
-    setAppState(prev => ({
-        ...prev,
-        user: { ...prev.user!, invoices: prev.user!.invoices.map(inv => inv.id === updatedInvoice.id ? updatedInvoice : inv) }
-    }));
-  };
-
-  const handleCheckout = async (planId: string) => {
-    // This function would call a Supabase Edge Function to create a Stripe Checkout session.
-    // For this demo, we'll simulate the process.
-    console.log(`Initiating checkout for plan: ${planId}`);
     try {
-        // const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-        //     body: { planId },
-        // });
-        // if (error) throw error;
-        // window.location.href = data.url; // Redirect to Stripe
-        alert(`Redirecting to Stripe to purchase ${planId} plan. (This is a demo)`);
+        const response = await fetch(`${BACKEND_URL}/initialize_payment`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_email: userEmail,
+                plan_code: planCode,
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to initialize payment.');
+        }
+
+        const data = await response.json();
+
+        const handler = PaystackPop.setup({
+            key: data.public_key,
+            email: data.email,
+            plan: data.plan_code,
+            ref: data.reference,
+            onClose: function() {
+                // User closed the popup
+            },
+            callback: function(response: any) {
+                // Payment successful. The backend should have a webhook to update the user's subscription status in Supabase.
+                // For a better user experience, we can poll or just refetch user data after a short delay.
+                alert('Payment successful! Your plan is being updated.');
+                setTimeout(() => {
+                    if (session) {
+                        fetchUserData(session.user.id, session.user.email);
+                        handleNavigate('dashboard');
+                    }
+                }, 3000); // Wait 3 seconds for webhook to potentially process
+            }
+        });
+        handler.openIframe();
+
     } catch (error) {
         console.error("Checkout failed:", error);
-        alert("Could not initiate checkout. Please try again.");
+        throw error;
     }
   };
 
-  const addDocument = async (docData: Omit<Document, 'id' | 'created_at' | 'health_score' | 'signature_status' | 'signatories' | 'user_id' | 'version_history'>): Promise<Document> => {
+  const handleCancelSubscription = async () => {
+    if (!appState.user || !appState.user.subscription_code || !appState.user.email_token) {
+        throw new Error("Subscription details not found. Please contact support.");
+    }
+
+    if (!window.confirm("Are you sure you want to cancel your subscription? Your access will continue until the end of the current billing period.")) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${BACKEND_URL}/cancel_subscription`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                subscription_code: appState.user.subscription_code,
+                email_token: appState.user.email_token,
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to cancel subscription.');
+        }
+
+        alert("Your subscription has been cancelled. It will not renew at the end of the current period.");
+        if (session) {
+            await fetchUserData(session.user.id, session.user.email);
+        }
+
+    } catch (error) {
+        console.error("Cancellation failed:", error);
+        throw error;
+    }
+  };
+
+  const addDocument = async (docData: Omit<Document, 'id' | 'created_at' | 'user_id' | 'version_history'>): Promise<Document> => {
     if (!session) throw new Error("User not logged in");
     const newDocumentPayload = { 
         ...docData, 
-        health_score: 80, 
-        signature_status: 'none', 
-        signatories: [], 
+        id: uuidv4(),
         user_id: session.user.id,
         version_history: [] as unknown as Json,
     };
@@ -461,39 +330,7 @@ const AppContent: React.FC = () => {
     await fetchUserData(session.user.id, session.user.email);
     return data as Document;
   };
-  
-  const uploadDocument = async (file: File, matterId: string, description: string): Promise<void> => {
-      if (!session) throw new Error("User not logged in");
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `${session.user.id}/${matterId}/${fileName}`;
-      
-      const { error: uploadError } = await supabase.storage.from('case_documents').upload(filePath, file);
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage.from('case_documents').getPublicUrl(filePath);
-
-      const docData = {
-          name: file.name,
-          type: description || 'Uploaded File',
-          status: 'uploaded',
-          source: 'uploaded' as 'uploaded',
-          content: `Uploaded file: ${file.name}`,
-          matter_id: matterId,
-          user_id: session.user.id,
-          file_url: publicUrl,
-          health_score: null,
-          signature_status: 'none',
-          signatories: [],
-          version_history: [] as unknown as Json
-      };
-      
-      const { error: insertError } = await supabase.from('documents').insert(docData);
-      if (insertError) throw insertError;
-      
-      await fetchUserData(session.user.id, session.user.email);
-  };
-  
+    
   const updateDocument = async (updatedDoc: Document) => {
     const { error } = await supabase.from('documents').update(updatedDoc).eq('id', updatedDoc.id);
     if (error) { throw new Error("Failed to save changes to the document."); }
@@ -501,12 +338,15 @@ const AppContent: React.FC = () => {
   };
   
   const handleDeleteDocument = async (documentId: string) => {
-    const { error } = await supabase.from('documents').delete().eq('id', documentId);
-    if (error) { throw new Error('Failed to delete the document. Please try again.'); }
-    await fetchUserData(session!.user.id, session!.user.email);
+    if (!session) throw new Error("User not authenticated for deletion.");
+    // FIX: Use .match to ensure user can only delete their own documents. This is a more robust fix.
+    const { error } = await supabase.from('documents').delete().match({ id: documentId, user_id: session.user.id });
+    if (error) { 
+        console.error("Supabase delete error:", error);
+        throw new Error('Failed to delete the document. Please try again.'); 
+    }
+    await fetchUserData(session.user.id, session.user.email);
   };
-
-  const addResearchLog = (params: any) => { /* ... not implemented with Supabase yet ... */ };
   
   const handleViewDocument = (doc: Document) => {
     setAppState(prevState => ({ ...prevState, currentPage: 'viewDocument', viewingDocument: doc }));
@@ -514,7 +354,7 @@ const AppContent: React.FC = () => {
   
   const handleSaveTemplate = async (template: Omit<Template, 'id' | 'created_at' | 'placeholders' | 'user_id'>, existingId?: string) => {
       if (!session) throw new Error("User not logged in");
-      const placeholders = (template.content?.match(/\{\{\s*(\w+)\s*\}\}/g) || []).map(p => p.replace(/[{}]/g, '').trim());
+      const placeholders = ((template.content as string)?.match(/\{\{\s*(\w+)\s*\}\}/g) || []).map(p => p.replace(/[{}]/g, '').trim());
       
       if (existingId) {
           const { error } = await supabase.from('templates').update({ ...template, placeholders }).eq('id', existingId);
@@ -536,25 +376,7 @@ const AppContent: React.FC = () => {
   const handleEditTemplate = (template: Template) => {
     setAppState(prevState => ({...prevState, currentPage: 'createTemplate', editingTemplate: template}));
   };
-  
-   const inviteUser = async (email: string, role: UserRole) => {
-        if (!appState.user?.firm_id) throw new Error("Only firm admins can invite users.");
-        
-        // Invoke the 'invite-user' Edge Function to handle user invitations securely.
-        // This replaces the direct, client-side call to a non-existent admin function.
-        const { error } = await supabase.functions.invoke('invite-user', {
-            body: { 
-                email: email, 
-                role: role,
-                firm_id: appState.user.firm_id
-            },
-        });
-
-        if (error) {
-            throw error;
-        }
-  };
-  
+    
   const markNotificationAsRead = async (notificationId: string) => {
     const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', notificationId);
     if (error) { console.error("Failed to mark notification as read", error); return; }
@@ -566,122 +388,126 @@ const AppContent: React.FC = () => {
     });
   };
 
-  const handleCreateTemplateFromDoc = (doc: Document) => {
-    const newTemplate: Template = {
-      id: '', created_at: '', user_id: '',
-      name: `${doc.name} Template`,
-      description: `Template created from document: ${doc.name}`,
-      content: doc.content, placeholders: [],
+  const handleCreateTemplateFromDocument = (doc: Document) => {
+    let contentToUse = '';
+    if (doc.source === 'uploaded' && doc.content) {
+        try {
+            const analysis: ContractAnalysis = JSON.parse(doc.content);
+            contentToUse = `# Analysis Summary for ${doc.name}\n\n${analysis.summary}\n\n## Key Risks\n${analysis.risks.map(r => `* [${r.severity}] ${r.description}`).join('\n')}`;
+        } catch (e) {
+            contentToUse = "Could not parse analysis content.";
+        }
+    } else {
+        contentToUse = doc.content || '';
     }
-    setAppState(prevState => ({ ...prevState, currentPage: 'createTemplate', editingTemplate: newTemplate as any }));
+    const newTemplateForEditing = {
+        name: `Template from ${doc.name}`,
+        description: `Based on document '${doc.name}'`,
+        content: contentToUse,
+    };
+    setAppState(prevState => ({...prevState, currentPage: 'createTemplate', editingTemplate: newTemplateForEditing as Template}));
   };
 
-    const handleUpdatePaymentSettings = async (settings: PaymentSettings) => {
-        if (!appState.user) return;
-        // In a real app, this would save to the database. Here, we just update local state.
-        setAppState(prevState => ({
-            ...prevState,
-            user: { ...prevState.user!, payment_settings: settings },
-        }));
-    };
+  const renderPage = () => {
+    const isUsageLimitReached = (appState.user?.usage?.analyzed || 0) >= 5 && (appState.user?.subscription_status === 'trial');
     
-    const handleUpdateInvoiceSettings = async (settings: InvoiceSettings) => {
-        if (!appState.user) return;
-        // In a real app, this would save to the database. Here, we just update local state.
-        setAppState(prevState => ({
-            ...prevState,
-            user: { ...prevState.user!, invoice_settings: settings },
-        }));
-    };
-
-  const isUsageLimitReached = false;
-
-  const renderAuthenticatedPage = () => {
-    if (!appState.user) return <div className="flex items-center justify-center h-full"><div className="w-12 h-12 border-4 border-t-blue-500 border-slate-200 dark:border-slate-600 rounded-full animate-spin"></div></div>;
-    const userRole = appState.user.role;
-    const userPermissions = (userRole && userRole in ROLES_PERMISSIONS) ? ROLES_PERMISSIONS[userRole as UserRole] : ROLES_PERMISSIONS['lawyer'];
     switch (appState.currentPage) {
-      case 'dashboard': return <Dashboard user={appState.user} onNavigate={handleNavigate} onViewDocument={handleViewDocument} onViewCase={handleViewCase} />;
-      case 'cases': if (!userPermissions.canManageClients) handleNavigate('dashboard'); return <CaseListPage matters={appState.user.matters} clients={appState.user.clients} onViewCase={handleViewCase} onNavigate={handleNavigate} onDeleteMatter={deleteMatter} />;
-      case 'viewCase': if (!appState.viewingMatter) { handleNavigate('cases'); return null; } return <CaseDetailPage matter={appState.viewingMatter} user={appState.user} onNavigate={handleNavigate} onViewDocument={handleViewDocument} addNote={addNote} onAddTask={addTask} onUpdateTask={updateTask} onDeleteTask={deleteTask} onLogTime={addTimeEntry} onUploadDocument={uploadDocument} onUpdateTimeEntry={updateTimeEntry} onUpdateMatter={updateMatter} onUpdateNote={updateNote} onDeleteNote={deleteNote} onDeleteTimeEntry={deleteTimeEntry} onAddInvoice={addInvoice} onUpdateInvoice={updateInvoice} />;
-      case 'clients': if (!userPermissions.canManageClients) handleNavigate('dashboard'); return <ClientListPage clients={appState.user.clients} matters={appState.user.matters} onViewClient={handleViewClient} onAddClient={() => handleNavigate('intake')} onDeleteClient={deleteClient} />;
-      case 'viewClient': if (!appState.viewingClient) { handleNavigate('clients'); return null; } return <ClientDetailPage client={appState.viewingClient} matters={appState.user.matters.filter(m => m.client_id === appState.viewingClient!.id)} onNavigate={handleNavigate} onUpdateClient={updateClient} />;
-      case 'intake': if (!userPermissions.canPerformIntake) handleNavigate('dashboard'); return <ClientIntakePage clients={appState.user.clients} matters={appState.user.matters} onAddMatter={addMatter} onAddClient={addClient} onNavigate={handleNavigate} />;
-      case 'tasks': if (!userPermissions.canManageClients) handleNavigate('dashboard'); return <TaskListPage tasks={appState.user.tasks} matters={appState.user.matters} onAddTask={addTask} onUpdateTask={updateTask} onDeleteTask={deleteTask} />;
-      case 'draft': return <DraftContractPage matters={appState.user.matters} isUsageLimitReached={isUsageLimitReached} onNavigate={handleNavigate} addDocument={addDocument} updateDocument={updateDocument} onCreateTemplate={handleCreateTemplateFromDoc} />;
-      case 'review': return <ReviewContractPage isUsageLimitReached={isUsageLimitReached} onNavigate={handleNavigate} addDocument={addDocument} updateDocument={updateDocument} />;
-      case 'research': return <LegalResearchPage researchLogs={appState.user.researchLogs} addResearchLog={addResearchLog} />;
-      case 'advancedResearch': if (!userPermissions.canResearch) handleNavigate('dashboard'); return <AdvancedResearchPage />;
-      case 'documents': return <SavedDocumentsPage documents={appState.user.documents} onViewDocument={handleViewDocument} onDeleteDocument={handleDeleteDocument} />;
-      case 'viewDocument': if (!appState.viewingDocument) { handleNavigate('documents'); return null; } return <ViewDocumentPage document={appState.viewingDocument} updateDocument={updateDocument} onNavigate={handleNavigate} onCreateTemplate={handleCreateTemplateFromDoc} />;
-      case 'templates': return <TemplateManagerPage templates={appState.user.templates} onEdit={handleEditTemplate} onDelete={handleDeleteTemplate} onNavigate={handleNavigate} />;
-      case 'createTemplate': return <CreateTemplatePage onSave={handleSaveTemplate} existingTemplate={appState.editingTemplate} />;
-      case 'billing': if (!userPermissions.canAccessBilling) handleNavigate('dashboard'); return <BillingPage onChoosePlan={handleCheckout} user={appState.user} />;
-      case 'support': return <SupportPage />;
-      case 'team': if (appState.user.role !== 'admin') handleNavigate('dashboard'); return <TeamManagementPage user={appState.user} onInviteUser={inviteUser} />;
-      case 'reports': if (appState.user.role !== 'admin') handleNavigate('dashboard'); return <ReportsPage user={appState.user} />;
-      case 'paymentSettings': if (!userPermissions.canAccessBilling) handleNavigate('dashboard'); return <PaymentSettingsPage user={appState.user} onUpdateSettings={handleUpdatePaymentSettings} />;
-      case 'invoiceSettings': if (!userPermissions.canAccessBilling) handleNavigate('dashboard'); return <InvoiceSettingsPage user={appState.user} onUpdateSettings={handleUpdateInvoiceSettings} />;
-      case 'admin': if (!userPermissions.canAccessAdmin) handleNavigate('dashboard'); return <div className="text-center p-8 bg-white dark:bg-slate-800 rounded-xl shadow-lg"><h1 className="text-3xl font-bold">Admin Panel</h1></div>;
-      case 'sqlEditor': if (!userPermissions.canAccessAdmin) handleNavigate('dashboard'); return <SqlEditorPage />;
-      default: return <Dashboard user={appState.user} onNavigate={handleNavigate} onViewDocument={handleViewDocument} onViewCase={handleViewCase} />;
+      case 'landing':
+        return <LandingPage onNavigate={handleNavigate} />;
+      case 'pricing':
+        return <PricingPage onNavigate={handleNavigate} />;
+      case 'login':
+        return <LoginPage onNavigate={handleNavigate} />;
+      case 'signup':
+        return <SignupPage onNavigate={handleNavigate} />;
+      case 'forgotPassword':
+        return <ForgotPasswordPage onNavigate={handleNavigate} />;
+      case 'features':
+        return <FeaturesPage onNavigate={handleNavigate} />;
+      case 'testimonials':
+        return <TestimonialsPage onNavigate={handleNavigate} />;
+      case 'demo':
+        return <DemoPage onNavigate={handleNavigate} />;
+      case 'terms':
+        return <TermsOfServicePage onNavigate={handleNavigate} />;
+      case 'privacy':
+        return <PrivacyPolicyPage onNavigate={handleNavigate} />;
+      case 'about':
+        return <AboutPage onNavigate={handleNavigate} />;
+      case 'security':
+        return <SecurityPage onNavigate={handleNavigate} />;
+      case 'disclaimer':
+        return <DisclaimerPage onNavigate={handleNavigate} />;
+      case 'roadmap':
+        return appState.isAuthenticated
+          ? <InternalRoadmapPage />
+          : <RoadmapPage onNavigate={handleNavigate} />;
+      
+      // Authenticated pages below
+      case 'dashboard':
+        return appState.user ? <Dashboard user={appState.user} onNavigate={handleNavigate} onViewDocument={handleViewDocument} /> : null;
+      case 'review':
+        return <ReviewContractPage isUsageLimitReached={isUsageLimitReached} onNavigate={handleNavigate} addDocument={addDocument} updateDocument={updateDocument} />;
+      case 'documents':
+        return appState.user ? <SavedDocumentsPage documents={appState.user.documents} onViewDocument={handleViewDocument} onDeleteDocument={handleDeleteDocument} /> : null;
+      case 'billing':
+        return appState.user ? <BillingPage onChoosePlan={handleCheckout} user={appState.user} onCancelSubscription={handleCancelSubscription} /> : null;
+      case 'support':
+        return <SupportPage />;
+      case 'viewDocument':
+        if (appState.viewingDocument) {
+          return <ViewDocumentPage document={appState.viewingDocument} updateDocument={updateDocument} onNavigate={handleNavigate} onCreateTemplate={handleCreateTemplateFromDocument} />;
+        }
+        handleNavigate('documents');
+        return null;
+      case 'createTemplate':
+        return <CreateTemplatePage onSave={handleSaveTemplate} existingTemplate={appState.editingTemplate} />;
+      case 'templates':
+        return appState.user ? <TemplateManagerPage templates={appState.user.templates} onEdit={handleEditTemplate} onDelete={handleDeleteTemplate} onNavigate={handleNavigate} /> : null;
+      default:
+        return appState.isAuthenticated 
+            ? (appState.user ? <Dashboard user={appState.user} onNavigate={handleNavigate} onViewDocument={handleViewDocument} /> : null) 
+            : <LandingPage onNavigate={handleNavigate} />;
     }
+  };
+
+  if (!appState.isAuthenticated) {
+    return (
+      <div className={isDarkMode ? 'dark' : ''}>
+        {renderPage()}
+        <Footer onNavigate={handleNavigate} isAuthenticated={appState.isAuthenticated} />
+      </div>
+    );
   }
 
-  const renderPublicPage = () => {
-    switch (appState.currentPage) {
-        case 'landing': return <LandingPage onNavigate={handleNavigate} />;
-        case 'pricing': return <PricingPage onNavigate={handleNavigate} />;
-        case 'features': return <FeaturesPage onNavigate={handleNavigate} />;
-        case 'testimonials': return <TestimonialsPage onNavigate={handleNavigate} />;
-        case 'demo': return <DemoPage onNavigate={handleNavigate} />;
-        case 'login': return <LoginPage onNavigate={handleNavigate} />;
-        case 'signup': return <SignupPage onNavigate={handleNavigate} />;
-        case 'forgotPassword': return <ForgotPasswordPage onNavigate={handleNavigate} />;
-        case 'terms': return <TermsOfServicePage onNavigate={handleNavigate} />;
-        case 'privacy': return <PrivacyPolicyPage onNavigate={handleNavigate} />;
-        case 'disclaimer': return <DisclaimerPage onNavigate={handleNavigate} />;
-        default: return <LandingPage onNavigate={handleNavigate} />;
-    }
+  if (!appState.user) {
+    return <div className="flex items-center justify-center h-screen w-full bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300">Loading user data...</div>;
   }
-
+  
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans text-slate-800 dark:text-slate-300">
-      {appState.isAuthenticated && appState.user ? (
-        <div className="flex h-screen">
-            <Sidebar 
-                user={appState.user}
-                onLogout={handleLogout}
-                onNavigate={handleNavigate}
-                currentPage={appState.currentPage}
-                isSidebarOpen={isSidebarOpen}
-                setSidebarOpen={setSidebarOpen}
-            />
-            <div className="flex-1 flex flex-col overflow-hidden">
-                <Header 
-                    isDarkMode={isDarkMode}
-                    toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
-                    setSidebarOpen={setSidebarOpen}
-                    notifications={appState.user.notifications}
-                    onMarkNotificationRead={markNotificationAsRead}
-                    onNavigate={handleNavigate}
-                />
-                <main className="flex-grow overflow-y-auto">
-                  <div className="container mx-auto p-4 md:p-8">
-                    {renderAuthenticatedPage()}
-                  </div>
-                </main>
-            </div>
-        </div>
-      ) : (
-        <div className="flex flex-col min-h-screen">
-          <div className="flex-grow">{renderPublicPage()}</div>
-          <Footer onNavigate={handleNavigate} isAuthenticated={appState.isAuthenticated} />
-        </div>
-      )}
+    <div className={`font-sans antialiased text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-900 flex min-h-screen ${isDarkMode ? 'dark' : ''}`}>
+      <Sidebar
+        user={appState.user}
+        onLogout={handleLogout}
+        onNavigate={handleNavigate}
+        currentPage={appState.currentPage}
+        isSidebarOpen={isSidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+      />
+      <div className="flex-1 flex flex-col min-w-0">
+        <Header
+          isDarkMode={isDarkMode}
+          toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+          setSidebarOpen={setSidebarOpen}
+          notifications={appState.user.notifications}
+          onMarkNotificationRead={markNotificationAsRead}
+          onNavigate={handleNavigate}
+        />
+        <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+          {renderPage()}
+        </main>
+      </div>
       <DisclaimerBanner onNavigate={handleNavigate} />
     </div>
   );
 };
-
-export default App;

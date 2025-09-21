@@ -1,366 +1,292 @@
-
-
-import React, { useRef, useState, useEffect } from 'react';
-// FIX: Import the `Json` type to use for casting data sent to Supabase.
-import { Document, Signatory, SignatureStatus, Json, SignatoryStatus } from '../types';
-import { DISCLAIMER } from '../constants';
+import React, { useState } from 'react';
+import { ContractAnalysis, Document } from '../types';
 import WordIcon from './icons/WordIcon';
 import PdfIcon from './icons/PdfIcon';
-import SignatureIcon from './icons/SignatureIcon';
 import TemplateIcon from './icons/TemplateIcon';
-import ErrorAlert from './ErrorAlert';
-import { sendForSignature, getSignatureStatus } from '../services/eSignatureService';
-import ChevronDownIcon from './icons/ChevronDownIcon';
-import TextIcon from './icons/TextIcon';
-import ApiIcon from './icons/ApiIcon';
+import saveAs from 'file-saver';
+// FIX: IBlockContent and IBulletOptions are not exported in recent versions of docx.
+// Replaced IBlockContent with Paragraph where it was used as a type.
+import { Document as DocxDocument, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from 'docx';
 
-
-declare var jspdf: any;
-declare var html2canvas: any;
-declare var htmlToDocx: any;
-declare var saveAs: any;
+// marked is assumed to be loaded from a script tag
 declare var marked: any;
 
-interface GeneratedDocumentProps {
-  document: Document;
-  onUpdateDocument: (document: Document) => Promise<void>;
-  onReset: () => void;
-  onResetText?: string;
-  onCreateTemplate?: (document: Document) => void;
+interface AnalysisReportProps {
+    // FIX: Make analysis optional to support generated documents without analysis.
+    analysis?: ContractAnalysis | null;
+    document: Document;
+    onReset: () => void;
+    onCreateTemplate: (doc: Document) => void;
+    onUpdateDocument: (doc: Document) => Promise<void>;
 }
 
-const MenuItem: React.FC<{onClick: () => Promise<void>, icon: React.ReactNode, children: React.ReactNode}> = ({ onClick, icon, children }) => (
-    <button
-        onClick={onClick}
-        className="w-full flex items-center px-3 py-2 text-sm text-left text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-md"
-    >
-        {icon}
-        {children}
-    </button>
-);
-
-const GeneratedDocument: React.FC<GeneratedDocumentProps> = ({ document, onUpdateDocument, onReset, onResetText = 'Start New', onCreateTemplate }) => {
-  const documentRef = useRef<HTMLDivElement>(null);
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
-  const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
-  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
-  const exportMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    // FIX: Use `signature_status` to align with the Document type from Supabase.
-    if (document.signature_status === 'signed') {
-        setDisclaimerAccepted(true);
-    }
-  }, [document]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
-        setIsExportMenuOpen(false);
-      }
+const SeverityBadge: React.FC<{ severity: 'High' | 'Medium' | 'Low' }> = ({ severity }) => {
+    const config = {
+        High: 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300',
+        Medium: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300',
+        Low: 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300',
     };
-    // FIX: The component `document` prop shadows the global `document` object. Use `window.document` to add the event listener to the DOM.
-    window.document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      // FIX: The component `document` prop shadows the global `document` object. Use `window.document` to remove the event listener from the DOM.
-      window.document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  const fullContent = `${document.content}\n\n---\n\n**Disclaimer:** *${DISCLAIMER}*`;
-
-  const getParsedHtml = () => {
-     if (typeof marked === 'undefined') {
-        console.error('marked.js is not loaded');
-        return '';
-     }
-     return marked.parse(fullContent);
-  }
-
-  const exportToDocx = async () => {
-    setIsExporting(true);
-    setExportError(null);
-    if (!documentRef.current) return;
-    try {
-      const fileBuffer = await htmlToDocx(getParsedHtml());
-      saveAs(fileBuffer, `${document.name || 'generated-document'}.docx`);
-    } catch(e) {
-      console.error("Error exporting to DOCX:", e);
-      setExportError("There was an error exporting to Word. Please try again.");
-    } finally {
-      setIsExporting(false);
-      setIsExportMenuOpen(false);
-    }
-  };
-
-  const exportToPdf = async () => {
-    setIsExporting(true);
-    setExportError(null);
-    if (!documentRef.current) {
-        setIsExporting(false);
-        return;
-    };
-
-    try {
-      const isDarkMode = window.document.documentElement.classList.contains('dark');
-      const { jsPDF } = jspdf;
-      const canvas = await html2canvas(documentRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
-      });
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
-      heightLeft -= pdfHeight;
-
-      while (heightLeft > 0) {
-        position -= pdfHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
-        heightLeft -= pdfHeight;
-      }
-      
-      pdf.save(`${document.name || 'generated-document'}.pdf`);
-    } catch (e) {
-      console.error("Error exporting to PDF:", e);
-      setExportError("There was an error exporting to PDF. Please try again.");
-    } finally {
-      setIsExporting(false);
-      setIsExportMenuOpen(false);
-    }
-  };
-
-  const exportAsHtml = async () => {
-    setIsExporting(true);
-    setExportError(null);
-    try {
-      const htmlContent = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${document.name || 'Document'}</title><style>body { font-family: sans-serif; line-height: 1.6; max-width: 800px; margin: 2rem auto; padding: 0 1rem; } img { max-width: 100%; height: auto; }</style></head><body>${getParsedHtml()}</body></html>`;
-      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-      saveAs(blob, `${document.name || 'document'}.html`);
-    } catch (e) {
-      console.error("Error exporting to HTML:", e);
-      setExportError("There was an error exporting to Rich Text (.html).");
-    } finally {
-      setIsExporting(false);
-      setIsExportMenuOpen(false);
-    }
-  };
-
-  const exportAsPlainText = async () => {
-    setIsExporting(true);
-    setExportError(null);
-    try {
-      const blob = new Blob([document.content || ''], { type: 'text/plain;charset=utf-8' });
-      saveAs(blob, `${document.name || 'document'}.txt`);
-    } catch (e) {
-      console.error("Error exporting to TXT:", e);
-      setExportError("There was an error exporting to Plain Text (.txt).");
-    } finally {
-      setIsExporting(false);
-      setIsExportMenuOpen(false);
-    }
-  };
-  
-  const isExportDisabled = isExporting || !disclaimerAccepted;
-
-  return (
-    <div>
-        <div className="flex flex-col sm:flex-row gap-2 mb-4">
-            <div ref={exportMenuRef} className="relative flex-1">
-                <button 
-                    onClick={() => setIsExportMenuOpen(prev => !prev)} 
-                    disabled={isExportDisabled} 
-                    className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed"
-                    aria-haspopup="true"
-                    aria-expanded={isExportMenuOpen}
-                >
-                    {isExporting ? 'Exporting...' : 'Export Document'}
-                    <ChevronDownIcon className={`w-5 h-5 ml-2 transition-transform ${isExportMenuOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {isExportMenuOpen && (
-                    <div className="absolute top-full left-0 mt-2 w-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-md shadow-lg z-10 p-1">
-                        <MenuItem onClick={exportToPdf} icon={<PdfIcon className="h-5 w-5 mr-3 text-red-500" />}>Export as PDF</MenuItem>
-                        <MenuItem onClick={exportToDocx} icon={<WordIcon className="h-5 w-5 mr-3 text-blue-500" />}>Export as Word (.docx)</MenuItem>
-                        <MenuItem onClick={exportAsHtml} icon={<ApiIcon className="h-5 w-5 mr-3 text-orange-500" />}>Export as Rich Text (.html)</MenuItem>
-                        <MenuItem onClick={exportAsPlainText} icon={<TextIcon className="h-5 w-5 mr-3 text-slate-500" />}>Export as Plain Text (.txt)</MenuItem>
-                    </div>
-                )}
-            </div>
-            
-            {onCreateTemplate && (
-              <button onClick={() => onCreateTemplate(document)} className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-slate-600 hover:bg-slate-700">
-                <TemplateIcon className="h-5 w-5 mr-2" />
-                Save as Template
-              </button>
-            )}
-        </div>
-
-        {exportError && <div className="my-2"><ErrorAlert message={exportError} title="Export Failed" /></div>}
-
-        <ESignaturePanel document={document} onUpdateDocument={onUpdateDocument} />
-
-        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/50 rounded-lg p-3 my-4">
-            <div className="relative flex items-start">
-                <div className="flex h-6 items-center">
-                    <input id="disclaimer-checkbox" type="checkbox" checked={disclaimerAccepted} onChange={(e) => setDisclaimerAccepted(e.target.checked)} className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-600" />
-                </div>
-                <div className="ml-3 text-sm leading-6">
-                    <label htmlFor="disclaimer-checkbox" className="font-medium text-yellow-800 dark:text-yellow-200">Acknowledge Disclaimer to Export</label>
-                    <p className="text-yellow-700 dark:text-yellow-300/80">I understand this document is AI-generated and not legal advice.</p>
-                </div>
-            </div>
-        </div>
-      
-        <div ref={documentRef} className="prose prose-slate dark:prose-invert max-w-none p-4 border border-slate-200 dark:border-slate-700 rounded-md h-[60vh] overflow-y-auto bg-slate-50 dark:bg-slate-800" dangerouslySetInnerHTML={{ __html: getParsedHtml() }}></div>
-      
-        <button onClick={onReset} className="mt-4 w-full inline-flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-700">
-            {onResetText}
-        </button>
-    </div>
-  );
+    return <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${config[severity]}`}>{severity}</span>;
 };
 
-const ESignaturePanel: React.FC<{document: Document, onUpdateDocument: (doc: Document) => Promise<void>}> = ({ document, onUpdateDocument }) => {
-    const [signatories, setSignatories] = useState<Omit<Signatory, 'status'>[]>([]);
-    const [signerName, setSignerName] = useState('');
-    const [signerEmail, setSignerEmail] = useState('');
-    const [isSending, setIsSending] = useState(false);
-    const [isRefreshing, setIsRefreshing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+const AnalysisReport: React.FC<AnalysisReportProps> = ({ analysis, document, onReset, onCreateTemplate, onUpdateDocument }) => {
+    const [isExporting, setIsExporting] = useState(false);
 
-    useEffect(() => {
-        if (document.signature_status === 'none' && Array.isArray(document.signatories)) {
-            setSignatories(document.signatories as unknown as Omit<Signatory, 'status'>[]);
-        }
-    }, [document.signatories, document.signature_status]);
-
-    const handleAddSignatory = () => {
-        if (signerName.trim() && signerEmail.trim()) {
-            setSignatories([...signatories, { name: signerName, email: signerEmail }]);
-            setSignerName('');
-            setSignerEmail('');
-        }
-    };
-
-    const handleSendForSignature = async () => {
-        if (signatories.length === 0) return;
-        setIsSending(true);
-        setError(null);
-        try {
-            const { signatureRequestId } = await sendForSignature(document.content || '', signatories, document.id, document.user_id);
-            
-            const updatedDoc: Document = {
-                 ...document,
-                 signature_request_id: signatureRequestId,
-                 signature_status: 'out_for_signature', 
-                 signatories: signatories.map(s => ({ ...s, status: 'pending' })) as unknown as Json
-            };
-            await onUpdateDocument(updatedDoc);
-        } catch (e) {
-            setError(e instanceof Error ? e.message : 'Failed to send for signature.');
-        } finally {
-            setIsSending(false);
-        }
-    };
-    
-    const handleRefreshStatus = async () => {
-        if (!document.signature_request_id) return;
-        setIsRefreshing(true);
-        setError(null);
-        try {
-            const { status, signatories: updatedSignatories } = await getSignatureStatus(document.signature_request_id);
-            const updatedDoc = {
-                ...document,
-                signature_status: status,
-                signatories: updatedSignatories as unknown as Json
-            };
-            await onUpdateDocument(updatedDoc);
-        } catch(e) {
-            setError(e instanceof Error ? e.message : 'Failed to refresh signature status.');
-        } finally {
-            setIsRefreshing(false);
-        }
-    };
-
-
-    if (document.signature_status !== 'none') {
+    // FIX: Conditionally render for generated documents if no analysis is provided.
+    // This fixes the props error in DraftContractPage.
+    if (!analysis) {
+        // This is a drafted document, not an analysis report.
         return (
-            <div className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/50 mb-4">
-                <div className="flex justify-between items-center">
-                    <h3 className="font-bold text-slate-800 dark:text-slate-200 flex items-center"><SignatureIcon className="w-5 h-5 mr-2 text-blue-500" />E-Signature Status</h3>
-                    {document.signature_status === 'out_for_signature' && (
-                        <button onClick={handleRefreshStatus} disabled={isRefreshing} className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-100 dark:bg-blue-900/50 dark:text-blue-200 rounded-md hover:bg-blue-200 dark:hover:bg-blue-800/60 disabled:bg-slate-200 disabled:text-slate-500 transition-colors">
-                            {isRefreshing ? 'Refreshing...' : 'Refresh Status'}
-                        </button>
-                    )}
-                </div>
-                {error && <div className="mt-2"><ErrorAlert message={error} title="Update Failed" /></div>}
-                <div className="mt-2 text-sm space-y-2">
-                    {(Array.isArray(document.signatories) ? (document.signatories as unknown as Signatory[]) : []).map((s, i) => (
-                        <div key={i} className="flex justify-between items-center py-1">
-                            <span className="text-slate-600 dark:text-slate-300">{s.name} ({s.email})</span>
-                             <SignatureStatusBadge status={s.status} />
-                        </div>
-                    ))}
-                </div>
+          <div className="space-y-6">
+            <div className="prose prose-slate dark:prose-invert max-w-none bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg border border-slate-200 dark:border-slate-700 h-96 overflow-y-auto">
+              <div dangerouslySetInnerHTML={{ __html: marked.parse(document.content || 'Generating document...') }} />
             </div>
+            <div className="flex-shrink-0 pt-4 flex flex-col sm:flex-row gap-2 justify-end">
+              <button onClick={() => onCreateTemplate(document)} className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors">
+                  <TemplateIcon className="w-4 h-4 mr-2" />
+                  Create Template
+              </button>
+              <button onClick={onReset} className="px-4 py-2 text-sm font-medium text-white bg-slate-600 rounded-md hover:bg-slate-700">
+                  Draft Another
+              </button>
+            </div>
+          </div>
         );
     }
-    
+
+    const analysisToMarkdown = () => {
+        let md = `# Contract Analysis: ${document.name}\n\n`;
+        md += `## Summary\n${analysis.summary}\n\n`;
+        md += `## Risks & Red Flags\n`;
+        if (analysis.risks.length > 0) {
+            analysis.risks.forEach(risk => {
+                md += `*   **[${risk.severity}]** ${risk.description}\n`;
+                md += `    > *Snippet:* ${risk.snippet}\n`;
+            });
+        } else {
+            md += "No major risks were identified.\n";
+        }
+        md += '\n';
+        md += `## Missing Clauses\n`;
+        if (analysis.missingClauses.length > 0) {
+            analysis.missingClauses.forEach(clause => {
+                md += `*   ${clause}\n`;
+            });
+        } else {
+            md += "No critical missing clauses were identified.\n";
+        }
+        md += '\n';
+        md += `## Suggested Fixes\n`;
+        if (analysis.suggestedFixes.length > 0) {
+            analysis.suggestedFixes.forEach(fix => {
+                md += `*   ${fix}\n`;
+            });
+        } else {
+            md += "No specific improvements were suggested.\n";
+        }
+        md += '\n';
+        md += `## Key Dates & Obligations\n`;
+        if (analysis.keyDates.length > 0) {
+            analysis.keyDates.forEach(item => {
+                md += `*   **${item.date}:** ${item.obligation}\n`;
+            });
+        } else {
+            md += "No key dates were identified.\n";
+        }
+        return md;
+    };
+
+    const handleExport = async (format: 'word' | 'pdf') => {
+        setIsExporting(true);
+        const markdown = analysisToMarkdown();
+        if (format === 'word') {
+            await handleSaveAsWord(markdown);
+        } else {
+            // PDF export can be added here if needed, similar to original GeneratedDocument
+        }
+        setIsExporting(false);
+    };
+
+    const handleSaveAsWord = async (markdown: string) => {
+        const htmlString = marked.parse(markdown);
+        const parser = new DOMParser();
+        const docHtml = parser.parseFromString(`<div>${htmlString}</div>`, 'text/html');
+        
+        // FIX: Replaced IBlockContent[] with Paragraph[]
+        const processNode = (node: Node): Paragraph[] => {
+            const blocks: Paragraph[] = [];
+            if (node.nodeType !== Node.ELEMENT_NODE) return blocks;
+            const element = node as HTMLElement;
+            const tagName = element.tagName.toLowerCase();
+            
+            switch (tagName) {
+                case 'h1': case 'h2': case 'h3':
+                    blocks.push(new Paragraph({ text: element.textContent || '', heading: HeadingLevel.HEADING_2 }));
+                    break;
+                case 'p':
+                    blocks.push(new Paragraph(element.textContent || ''));
+                    break;
+                case 'ul':
+                    element.querySelectorAll(':scope > li').forEach(li => {
+                        blocks.push(new Paragraph({ text: li.textContent || '', bullet: { level: 0 } }));
+                    });
+                    break;
+                default:
+                    element.childNodes.forEach(child => blocks.push(...processNode(child)));
+            }
+            return blocks;
+        };
+
+        // FIX: Replaced IBlockContent[] with Paragraph[]
+        const docxChildren: Paragraph[] = Array.from(docHtml.body.firstChild?.childNodes || []).flatMap(processNode);
+        
+        const doc = new DocxDocument({
+            sections: [{ children: docxChildren }]
+        });
+        const blob = await Packer.toBlob(doc);
+        saveAs(blob, `${document.name}-analysis.docx`);
+    };
+
     return (
-        <div className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/50 mb-4 space-y-3">
-             <h3 className="font-bold text-slate-800 dark:text-slate-200 flex items-center"><SignatureIcon className="w-5 h-5 mr-2" />Send for E-Signature</h3>
-             {error && <ErrorAlert message={error} title="Request Failed" />}
-             {signatories.map((s, i) => (
-                 <div key={i} className="text-sm bg-slate-200 dark:bg-slate-700 px-2 py-1 rounded-md flex justify-between items-center">
-                     <span>{s.name} ({s.email})</span>
-                     <button onClick={() => setSignatories(signatories.filter((_, idx) => idx !== i))} className="text-slate-500 hover:text-red-500">×</button>
-                 </div>
-             ))}
-             <div className="flex gap-2 items-end">
-                 <div className="flex-grow">
-                     <label className="text-xs text-slate-500">Signatory Name</label>
-                     <input type="text" value={signerName} onChange={e => setSignerName(e.target.value)} placeholder="Jane Doe" className="w-full text-sm px-2 py-1 border border-slate-300 dark:border-slate-600 rounded" />
-                 </div>
-                 <div className="flex-grow">
-                     <label className="text-xs text-slate-500">Signatory Email</label>
-                     <input type="email" value={signerEmail} onChange={e => setSignerEmail(e.target.value)} placeholder="jane@example.com" className="w-full text-sm px-2 py-1 border border-slate-300 dark:border-slate-600 rounded" />
-                 </div>
-                 <button onClick={handleAddSignatory} className="px-3 py-1 text-sm border rounded-md bg-white dark:bg-slate-600 hover:bg-slate-100 dark:hover:bg-slate-500">+</button>
-             </div>
-             <button onClick={handleSendForSignature} disabled={isSending || signatories.length === 0} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded disabled:bg-slate-400">
-                {isSending ? 'Sending...' : `Send for Signature to ${signatories.length} recipient(s)`}
-             </button>
+        <div className="space-y-6">
+            <ResultCard title="Summary">
+                <p>{analysis.summary}</p>
+            </ResultCard>
+
+            <ResultCard title={`Risks & Red Flags (${analysis.risks.length})`}>
+                <ul className="space-y-4">
+                    {analysis.risks.map((risk, i) => (
+                        <li key={i} className="border-l-4 pl-4" style={{ borderColor: risk.severity === 'High' ? '#ef4444' : risk.severity === 'Medium' ? '#f59e0b' : '#22c55e' }}>
+                            <div className="flex items-center gap-2 mb-1">
+                                <SeverityBadge severity={risk.severity} />
+                                <h4 className="font-semibold text-slate-800 dark:text-slate-100">{risk.description}</h4>
+                            </div>
+                            <blockquote className="text-sm text-slate-500 dark:text-slate-400 italic border-none p-0 m-0">
+                                "{risk.snippet}"
+                            </blockquote>
+                        </li>
+                    ))}
+                </ul>
+            </ResultCard>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <ResultCard title="Missing Clauses">
+                    <ul className="list-disc list-inside space-y-1">
+                        {analysis.missingClauses.map((clause, i) => <li key={i}>{clause}</li>)}
+                    </ul>
+                </ResultCard>
+                <ResultCard title="Suggested Fixes">
+                     <ul className="list-disc list-inside space-y-1">
+                        {analysis.suggestedFixes.map((fix, i) => <li key={i}>{fix}</li>)}
+                    </ul>
+                </ResultCard>
+            </div>
+            
+             <ResultCard title="Key Dates & Obligations">
+                <ul className="space-y-2">
+                    {analysis.keyDates.map((item, i) => (
+                        <li key={i}><strong className="font-semibold">{item.date}:</strong> {item.obligation}</li>
+                    ))}
+                </ul>
+            </ResultCard>
+
+            <FeedbackCapture document={document} onUpdateDocument={onUpdateDocument} />
+
+             <div className="flex-shrink-0 pt-4 flex flex-col sm:flex-row gap-2 justify-end">
+                <button onClick={() => handleExport('word')} disabled={isExporting} className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors disabled:opacity-50">
+                    <WordIcon className="w-4 h-4 mr-2" />
+                    {isExporting ? 'Exporting...' : 'Save as Word'}
+                </button>
+                <button onClick={() => onCreateTemplate(document)} className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors">
+                    <TemplateIcon className="w-4 h-4 mr-2" />
+                    Create Template
+                </button>
+                <button onClick={onReset} className="px-4 py-2 text-sm font-medium text-white bg-slate-600 rounded-md hover:bg-slate-700">
+                    Analyze Another
+                </button>
+            </div>
         </div>
     );
 };
 
-const SignatureStatusBadge: React.FC<{ status: SignatureStatus | SignatoryStatus }> = ({ status }) => {
-  const styles: Record<string, string> = {
-    none: 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300',
-    out_for_signature: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300',
-    signed: 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300',
-    declined: 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300',
-    pending: 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300',
-  };
-  const text: Record<string, string> = {
-    none: 'Not Sent',
-    out_for_signature: 'Out for Signature',
-    signed: 'Signed',
-    declined: 'Declined',
-    pending: 'Pending',
-  };
-  return <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${styles[status] || styles.none}`}>{text[status] || 'Unknown'}</span>;
+const ResultCard: React.FC<{title: string, children: React.ReactNode}> = ({ title, children }) => (
+    <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
+        <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-3 border-b border-slate-200 dark:border-slate-700 pb-2">{title}</h3>
+        <div className="text-sm">{children}</div>
+    </div>
+);
+
+const FeedbackCapture: React.FC<{ document: Document, onUpdateDocument: (doc: Document) => Promise<void> }> = ({ document, onUpdateDocument }) => {
+    const [feedback, setFeedback] = useState<{useful: boolean | null, comment: string}>({ useful: null, comment: '' });
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [feedbackSubmitted, setFeedbackSubmitted] = useState(document.feedback_is_useful !== null);
+
+    const handleFeedbackSubmit = async () => {
+        if (feedback.useful === null) return;
+        setIsSubmitting(true);
+        const updatedDoc: Document = {
+            ...document,
+            feedback_is_useful: feedback.useful,
+            feedback_comment: feedback.comment || null,
+        };
+        try {
+            await onUpdateDocument(updatedDoc);
+            setFeedbackSubmitted(true);
+        } catch (error) {
+            console.error("Failed to submit feedback", error);
+            // Optionally show an error to the user
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    if (feedbackSubmitted) {
+        return (
+            <div className="mt-6 p-4 bg-green-50 dark:bg-green-900/30 rounded-lg border border-green-200 dark:border-green-700 text-center text-green-800 dark:text-green-200">
+                <p>Thank you for your feedback!</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="mt-6 p-4 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+            <h3 className="font-semibold text-center text-slate-700 dark:text-slate-200">Was this analysis useful?</h3>
+            <div className="flex justify-center items-center gap-4 mt-3">
+                <button 
+                    onClick={() => setFeedback(f => ({...f, useful: true}))} 
+                    className={`p-2 rounded-full transition-colors ${feedback.useful === true ? 'bg-green-200 dark:bg-green-500/30 text-green-700 dark:text-green-300' : 'bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500'}`}
+                    aria-label="Analysis was useful"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.085a2 2 0 00-1.736.97l-2.736 4.562M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" /></svg>
+                </button>
+                <button 
+                    onClick={() => setFeedback(f => ({...f, useful: false}))}
+                    className={`p-2 rounded-full transition-colors ${feedback.useful === false ? 'bg-red-200 dark:bg-red-500/30 text-red-700 dark:text-red-300' : 'bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500'}`}
+                    aria-label="Analysis was not useful"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.738 3h4.017c.163 0 .326.02.485.06L17 4m-7 10v5a2 2 0 002 2h.085a2 2 0 001.736-.97l2.736-4.562M17 4H19a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" /></svg>
+                </button>
+            </div>
+            {feedback.useful !== null && (
+                <div className="mt-4 space-y-2">
+                    <textarea 
+                        value={feedback.comment}
+                        onChange={(e) => setFeedback(f => ({...f, comment: e.target.value}))}
+                        rows={2}
+                        placeholder="Optional: Tell us more..."
+                        className="w-full text-sm p-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md"
+                    />
+                    <button 
+                        onClick={handleFeedbackSubmit}
+                        disabled={isSubmitting}
+                        className="w-full py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:bg-slate-400"
+                    >
+                        {isSubmitting ? 'Submitting...' : 'Submit Feedback'}
+                    </button>
+                </div>
+            )}
+        </div>
+    );
 };
 
-
-export default GeneratedDocument;
+export default AnalysisReport;

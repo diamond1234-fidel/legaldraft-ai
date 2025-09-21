@@ -1,5 +1,5 @@
 {
-  "name": "ai-contract-&-document-drafting-assistant",
+  "name": "contract-review-ai",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -12,7 +12,11 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "@google/genai": "^1.19.0",
-    "@supabase/supabase-js": "2.44.4"
+    "@supabase/supabase-js": "2.44.4",
+    "uuid": "^13.0.0",
+    "docx": "8.5.0",
+    "file-saver": "2.0.5",
+    "pdfjs-dist": "4.5.136"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

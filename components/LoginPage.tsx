@@ -18,7 +18,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
     setLoading(true);
     setError('');
 
-    // FIX: Using `signInWithPassword` which is correct for Supabase v2.
+    // FIX: Use the `signInWithPassword` method from Supabase v2.
     const { error } = await supabase.auth.signInWithPassword({
       email: email,
       password: password,
@@ -36,7 +36,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
         <div className="flex justify-center items-center mb-6 cursor-pointer" onClick={() => onNavigate('landing')}>
             <DocumentIcon className="h-10 w-10 text-blue-600 mr-3" />
             <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">
-            LegalDraft AI
+            oddfalcon
             </h1>
         </div>
         <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700">

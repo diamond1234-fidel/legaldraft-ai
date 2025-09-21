@@ -1,6 +1,6 @@
+
 import { Tables } from './types/supabase';
-// FIX: Export the Json type to be used in other components.
-// FIX: Export the Tables type to resolve import error in other components.
+
 export type { Json, Tables } from './types/supabase';
 
 export type Page =
@@ -10,169 +10,78 @@ export type Page =
   | 'signup'
   | 'forgotPassword'
   | 'dashboard'
-  | 'intake'
-  | 'draft'
   | 'review'
-  | 'research'
   | 'documents'
   | 'billing'
   | 'support'
-  | 'admin'
-  | 'sqlEditor'
   | 'viewDocument'
   | 'createTemplate'
   | 'templates'
   | 'features'
   | 'testimonials'
   | 'demo'
-  | 'clients'
-  | 'viewClient'
   | 'terms'
   | 'privacy'
+  | 'about'
+  | 'security'
   | 'disclaimer'
-  | 'cases'
-  | 'viewCase'
-  | 'tasks'
-  | 'advancedResearch'
+  | 'roadmap'
+  // FIX: Add new pages to support navigation
+  | 'matters'
+  | 'clients'
+  | 'clientDetail'
+  | 'caseDetail'
+  | 'intake'
   | 'team'
   | 'reports'
-  | 'paymentSettings'
-  | 'invoiceSettings';
+  | 'sqlEditor'
+  | 'firmSettings'
+  | 'forms'
+  | 'formFilling'
+  | 'i9Compliance'
+  | 'i9WorkFlow'
+  | 'advancedResearch';
 
-export type SubscriptionStatus = 'trial' | 'paid' | 'basic' | 'pro' | 'enterprise' | 'cancelled';
+export type SubscriptionStatus = 'trial' | 'paid' | 'basic' | 'pro' | 'enterprise' | 'cancelled' | 'non-renewing';
 export type SubscriptionPlan = 'basic' | 'pro' | 'enterprise';
-
-export type SignatoryStatus = 'pending' | 'signed' | 'declined';
-
-export type SignatureStatus = 'none' | 'out_for_signature' | 'signed' | 'declined';
-
-export interface Signatory {
-    name: string;
-    email: string;
-    status: SignatoryStatus;
-}
 
 export type Document = Tables<'documents'>;
 export type Template = Tables<'templates'>;
 export type Profile = Tables<'profiles'>;
+export type Notification = Tables<'notifications'>;
+// FIX: Add new table types
 export type Client = Tables<'clients'>;
 export type Matter = Tables<'matters'>;
-export type Task = Tables<'tasks'>;
 export type Note = Tables<'notes'>;
+export type Task = Tables<'tasks'>;
 export type TimeEntry = Tables<'time_entries'>;
-export type Evidence = Tables<'evidence'>;
-export type Notification = Tables<'notifications'>;
-export interface Invoice {
-    id: string;
-    matter_id: string;
-    client_id: string;
-    amount: number;
-    status: 'draft' | 'sent' | 'paid' | 'overdue' | 'void';
-    dueDate: string;
-    issuedDate: string;
-    lineItems: TimeEntry[];
-    url: string;
-}
-export interface PaymentSettings {
-  stripe: {
-    connected: boolean;
-    publishableKey: string | null;
-  };
-  paypal: {
-    connected: boolean;
-    clientId: string | null;
-  };
-  bankTransfer: {
-    enabled: boolean;
-    instructions: string | null;
-  };
-}
+export type I9Record = Tables<'i9_records'>;
+export type EVerifyCase = Tables<'e_verify_cases'>;
 
-export interface InvoiceSettings {
-    template: 'modern' | 'classic' | 'simple';
-    accentColor: string;
-    logoUrl: string | null;
-    fromAddress: string;
-    notes: string;
-}
+export type UserRole = 'user' | 'admin' | 'lawyer' | 'paralegal';
 
-
-export interface DocumentVersion {
-  version: number;
-  createdAt: string;
-  content: string | null;
-  description: string;
-}
-
-export type ResearchType = 'publicProfile' | 'reverseImage' | 'courtFilings' | 'kyc';
-
-export interface OpposingParty {
-    name: string;
-    counsel: string;
-}
-
-export interface ResearchParams {
-    fullName: string;
-    organization: string;
-    state: string;
-    researchType: ResearchType;
-    image?: File;
-    reason: string;
-    consentGiven: boolean;
-}
-
-export interface ResearchLog extends ResearchParams {
-    id: string;
-    timestamp: string;
-}
-
-export type UserRole = 'lawyer' | 'paralegal' | 'admin';
-
+// FIX: Add missing properties to UserProfile
 export interface UserProfile extends Profile {
   usage: {
-    drafted: number;
-    reviewed: number;
+    analyzed: number;
   };
   documents: Document[];
   templates: Template[];
+  notifications: Notification[];
+  subscription_plan?: SubscriptionPlan;
+  firm_name?: string | null;
+  hourly_rate?: number | null;
   clients: Client[];
   matters: Matter[];
-  tasks: Task[];
   notes: Note[];
+  tasks: Task[];
   timeEntries: TimeEntry[];
-  evidence: Evidence[];
-  researchLogs: ResearchLog[];
-  notifications: Notification[];
-  teamMembers: Profile[];
-  payment_settings: PaymentSettings;
   invoices: Invoice[];
+  i9Records: I9Record[];
+  eVerifyCases: EVerifyCase[];
+  teamMembers?: Profile[];
+  payment_settings: PaymentSettings;
   invoice_settings: InvoiceSettings;
-
-
-  // Detailed signup fields based on new schema
-  account_type?: 'lawyer' | 'firm';
-  // FIX: The `full_name` property is defined in the base `Profile` type as `string | null`.
-  // The previous optional type (`string | undefined`) was incompatible. This makes it compatible.
-  full_name: string | null;
-  phone_number?: string;
-  
-  // Individual Lawyer fields
-  bar_id?: string;
-  // FIX: The `jurisdiction` property is defined in the base `Profile` type as `string | null`.
-  // The previous optional type `string?` (i.e., `string | undefined`) was incompatible.
-  // This makes it compatible with the extended type.
-  jurisdiction: string | null;
-  years_experience?: number;
-  practice_areas?: string[];
-  hourly_rate?: number;
-
-  // Firm fields
-  firm_name?: string;
-  firm_size?: string; // e.g. "1-5", "6-20"
-  firm_address?: string;
-
-  // Subscription info
-  subscription_plan?: SubscriptionPlan;
 }
 
 export interface AppState {
@@ -181,8 +90,6 @@ export interface AppState {
   user: UserProfile | null;
   viewingDocument?: Document | null;
   editingTemplate?: Template | null;
-  viewingClient?: Client | null;
-  viewingMatter?: Matter | null;
 }
 
 export interface SelectOption {
@@ -190,108 +97,177 @@ export interface SelectOption {
     label:string;
 }
 
-export interface FormData {
-    documentType: string;
-    state: string;
-    partyA_name: string;
-    partyA_address: string;
-    partyB_name: string;
-    partyB_address: string;
-    effectiveDate: string;
-    optionalClauses: {
-        arbitration: boolean;
-        indemnification: boolean;
-        confidentiality: boolean;
-    };
-    customDetails: string;
+export interface ContractAnalysis {
+    summary: string;
+    risks: {
+        severity: 'High' | 'Medium' | 'Low';
+        description: string;
+        snippet: string;
+    }[];
+    missingClauses: string[];
+    suggestedFixes: string[];
+    keyDates: {
+        date: string;
+        obligation: string;
+    }[];
 }
 
+export type DocumentStatus = 'draft' | 'analyzed' | 'reviewed' | 'signed' | 'out_for_signature';
+
+// FIX: Add missing type definitions below
+
+export interface FormData {
+  documentType: string;
+  state: string;
+  partyA_name: string;
+  partyA_address: string;
+  partyB_name: string;
+  partyB_address: string;
+  effectiveDate: string;
+  optionalClauses: { [key: string]: boolean };
+  customDetails: string;
+}
+
+export interface OpposingParty {
+    name: string;
+    counsel: string;
+}
+export interface Conflict {
+    conflictType: 'Past Client' | 'Past Opposing Party' | string;
+    partiesInvolved: string[];
+    reason: string;
+    matchedName: string;
+    conflictingMatterId: string;
+    conflictingMatterName: string;
+}
+
+export interface Signatory {
+    email: string;
+    name: string;
+    status: 'pending' | 'signed' | 'declined';
+}
+export interface DocumentVersion {
+    version: number;
+    createdAt: string;
+    description: string;
+    content: string;
+}
+export type ResearchType = 'publicProfile' | 'reverseImage' | 'courtFilings' | 'kyc';
+export interface ResearchParams {
+    fullName: string;
+    organization?: string;
+    state?: string;
+    researchType: ResearchType;
+    image?: File;
+    reason: string;
+    consentGiven: boolean;
+}
+export interface ResearchLog {
+    timestamp: string;
+    params: ResearchParams;
+}
+export interface PublicProfileResult {
+    fullName: string;
+    title: string;
+    company: string;
+    location: string;
+    linkedinUrl: string;
+    companyDomain: string;
+}
+export interface ImageResult {
+    source: string;
+    url: string;
+    snippet: string;
+    thumbnailUrl: string;
+}
+export interface CourtFilingResult {
+    docketNumber: string;
+    caseTitle: string;
+    jurisdiction: string;
+    link: string;
+}
+export interface KYCResult {
+    status: 'verified' | 'pending' | 'failed';
+    verificationId: string;
+    checkedAt: string;
+}
 export interface ResearchResults {
-    publicProfile?: {
-        fullName: string;
-        title: string;
-        company: string;
-        location: string;
-        linkedinUrl: string;
-        companyDomain: string;
+    publicProfile?: PublicProfileResult;
+    imageResults?: ImageResult[];
+    courtFilings?: CourtFilingResult[];
+    kyc?: KYCResult;
+}
+export interface InvoiceLineItem {
+    id: string;
+    date: string;
+    description: string | null;
+    hours: number;
+    rate: number;
+}
+export type Invoice = {
+  id: string;
+  matter_id: string;
+  client_id: string;
+  amount: number;
+  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'void';
+  issuedDate: string;
+  dueDate: string;
+  lineItems: InvoiceLineItem[];
+  url: string;
+};
+export interface PaymentSettings {
+    stripe: { connected: boolean; publishableKey: string };
+    paypal: { connected: boolean; clientId: string };
+    bankTransfer: { enabled: boolean; instructions: string };
+}
+export interface InvoiceSettings {
+    template: 'modern' | 'classic' | 'simple';
+    accentColor: string;
+    logoUrl: string;
+    fromAddress: string;
+    notes: string;
+}
+export type USCISFormQuestionnaire = { [key: string]: any };
+export interface USCISFormResult {
+    filledData: { [key: string]: string | boolean };
+    errorsAndWarnings: string[];
+}
+export interface LegalResearchResult {
+    summary: string;
+    argumentStrength: {
+        assessment: 'Strong' | 'Moderate' | 'Weak' | 'Uncertain';
+        reasoning: string;
     };
-    imageResults?: {
-        source: string;
+    suggestedPrecedents: { caseName: string; citation: string; reasoning: string }[];
+    relevantCases: {
+        caseName: string;
+        citation: string;
+        court: string;
+        decisionDate: string;
         url: string;
         snippet: string;
-        thumbnailUrl: string;
+        aiSummary: string;
     }[];
-    courtFilings?: {
-        docketNumber: string;
-        caseTitle: string;
-        jurisdiction: string;
-        link: string;
-    }[];
-    kyc?: {
-        status: string;
-        verificationId: string;
-        checkedAt: string;
-    };
 }
-
-export interface LegalResearchResult {
-  summary: string;
-  argumentStrength: {
-    assessment: 'Strong' | 'Moderate' | 'Weak' | 'Uncertain';
-    reasoning: string;
-  };
-  suggestedPrecedents: {
-    caseName: string;
-    citation: string;
-    reasoning: string;
-  }[];
-  relevantCases: AnalyzedCase[];
-}
-
-export interface AnalyzedCase {
-  caseName: string;
-  citation: string;
-  court: string;
-  decisionDate: string;
-  url: string;
-  snippet: string;
-  aiSummary: string;
-}
-
 export interface CaseLawAnalysisResult {
     opinion: any;
     citedOpinions: any[];
     aiSummary: string;
 }
-
 export interface PersonProfileResult {
     profile: any;
     aiSummary: string;
 }
-
 export interface DocketSummaryResult {
     docket: any;
     entries: any[];
     aiSummary: string;
 }
-
 export interface PredictiveAnalyticsResult {
-  prediction: "PlaintiffLikely" | "DefendantLikely" | "Uncertain";
-  confidence: number;
-  riskLevel: "Low" | "Medium" | "High";
-  recommendedStrategy: string;
-  supportingCases: {
-    caseName: string;
-    citation: string;
-    reasoning: string;
-  }[];
-  rawCasesFetched: number;
-}
-
-
-// FIX: Update Conflict interface to match the new API response from the external conflict check service.
-export interface Conflict {
-    conflictType: string;
-    partiesInvolved: string[];
-    reasoning: string;
+    prediction: 'PlaintiffLikely' | 'DefendantLikely' | 'Uncertain';
+    confidence: number;
+    riskLevel: 'Low' | 'Medium' | 'High';
+    recommendedStrategy: string;
+    supportingCases: { caseName: string; citation: string; reasoning: string }[];
+    rawCasesFetched: number;
 }

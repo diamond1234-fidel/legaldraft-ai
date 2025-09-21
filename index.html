@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LegalDraft AI</title>
+    <title>Contract Review AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -29,15 +29,14 @@
     </script>
     <link rel="preconnect" href="https://rsms.me/">
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://unpkg.com/html-to-docx@1.8.0/dist/html-to-docx.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/easymde/dist/easymde.min.css">
     <script src="https://unpkg.com/easymde/dist/easymde.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://js.paystack.co/v1/inline.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
       .bg-grid-slate-200\/50 {
           background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' width='32' height='32' fill='none' stroke-width='2' stroke='%23e2e8f0' stroke-opacity='0.5'%3e%3cpath d='M0 .5H31.5V32'/%3e%3c/svg%3e");
@@ -74,6 +73,35 @@
       .dark .CodeMirror {
           border-color: #475569 !important; /* slate-600 */
       }
+      /* Custom Scrollbar for Sidebar */
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 8px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: #1e293b; /* slate-800 */
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #475569; /* slate-600 */
+        border-radius: 4px;
+        border: 2px solid #1e293b; /* slate-800, creates padding */
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #64748b; /* slate-500 */
+      }
+       .blinking-cursor {
+        display: inline-block;
+        width: 8px;
+        height: 1em;
+        background-color: currentColor;
+        animation: blink 1s step-end infinite;
+        vertical-align: text-bottom;
+      }
+      @keyframes blink {
+        50% { opacity: 0; }
+      }
+      .dark .blinking-cursor {
+          background-color: #e2e8f0; /* slate-200 */
+      }
     </style>
   <script type="importmap">
 {
@@ -82,7 +110,11 @@
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
     "react/": "https://aistudiocdn.com/react@^19.1.1/",
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.19.0",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.44.4"
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.44.4",
+    "uuid": "https://aistudiocdn.com/uuid@^13.0.0",
+    "docx": "https://esm.sh/docx@8.5.0",
+    "file-saver": "https://esm.sh/file-saver@2.0.5",
+    "pdfjs-dist": "https://esm.sh/pdfjs-dist@4.5.136"
   }
 }
 </script>

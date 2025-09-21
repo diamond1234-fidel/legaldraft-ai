@@ -1,12 +1,12 @@
+
 import React, { useState } from 'react';
-// FIX: Import the `Profile` type.
 import { UserProfile, UserRole, Profile } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import ErrorAlert from './ErrorAlert';
 
 interface TeamManagementPageProps {
     user: UserProfile;
-    onInviteUser: (email: string, role: UserRole) => Promise<void>;
+    onInviteUser: (email: string, role: UserRole) => Promise<string>;
 }
 
 const TeamManagementPage: React.FC<TeamManagementPageProps> = ({ user, onInviteUser }) => {
@@ -25,8 +25,8 @@ const TeamManagementPage: React.FC<TeamManagementPageProps> = ({ user, onInviteU
         setError(null);
         setSuccessMessage(null);
         try {
-            await onInviteUser(inviteEmail, inviteRole);
-            setSuccessMessage(`Invitation sent to ${inviteEmail}.`);
+            const successMsg = await onInviteUser(inviteEmail, inviteRole);
+            setSuccessMessage(successMsg);
             setInviteEmail('');
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An unknown error occurred.');
@@ -86,9 +86,6 @@ const TeamManagementPage: React.FC<TeamManagementPageProps> = ({ user, onInviteU
 
 const TeamMemberListItem: React.FC<{member: UserProfile | Profile}> = ({ member }) => {
     // A simplified Profile type from Supabase might be passed for team members
-    // FIX: Use truthiness check for `full_name` instead of `in` operator.
-    // The `in` operator causes a TS error because `full_name` exists on both types in the union,
-    // making the `else` branch unreachable and narrowing `member` to type `never`.
     const fullName = member.full_name || member.email;
     const email = member.email;
     const role = member.role;

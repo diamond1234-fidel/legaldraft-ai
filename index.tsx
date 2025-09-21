@@ -1,7 +1,8 @@
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
-import { LanguageProvider } from './contexts/LanguageContext';
+// FIX: Changed to a named import to match the updated export in App.tsx.
+import { App } from './App';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -11,8 +12,6 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <LanguageProvider>
-      <App />
-    </LanguageProvider>
+    <App />
   </React.StrictMode>
 );

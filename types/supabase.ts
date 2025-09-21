@@ -1,5 +1,3 @@
-
-
 export type Json =
   | string
   | number
@@ -56,13 +54,14 @@ export type Database = {
         Row: {
           content: string | null
           created_at: string
+          feedback_comment: string | null
+          feedback_is_useful: boolean | null
           file_url: string | null
           health_score: number | null
           id: string
           matter_id: string | null
           name: string | null
           signature_request_id: string | null
-          signature_status: string | null
           signatories: Json | null
           source: "generated" | "uploaded" | null
           state: string | null
@@ -74,13 +73,14 @@ export type Database = {
         Insert: {
           content?: string | null
           created_at?: string
+          feedback_comment?: string | null
+          feedback_is_useful?: boolean | null
           file_url?: string | null
           health_score?: number | null
           id?: string
           matter_id?: string | null
           name?: string | null
           signature_request_id?: string | null
-          signature_status?: string | null
           signatories?: Json | null
           source?: "generated" | "uploaded" | null
           state?: string | null
@@ -92,13 +92,14 @@ export type Database = {
         Update: {
           content?: string | null
           created_at?: string
+          feedback_comment?: string | null
+          feedback_is_useful?: boolean | null
           file_url?: string | null
           health_score?: number | null
           id?: string
           matter_id?: string | null
           name?: string | null
           signature_request_id?: string | null
-          signature_status?: string | null
           signatories?: Json | null
           source?: "generated" | "uploaded" | null
           state?: string | null
@@ -117,6 +118,54 @@ export type Database = {
           },
           {
             foreignKeyName: "documents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      e_verify_cases: {
+        Row: {
+          case_number: string
+          created_at: string
+          id: string
+          i9_record_id: string
+          resolved_at: string | null
+          status: string
+          submitted_at: string
+          user_id: string
+        }
+        Insert: {
+          case_number: string
+          created_at?: string
+          id?: string
+          i9_record_id: string
+          resolved_at?: string | null
+          status: string
+          submitted_at?: string
+          user_id: string
+        }
+        Update: {
+          case_number?: string
+          created_at?: string
+          id?: string
+          i9_record_id?: string
+          resolved_at?: string | null
+          status?: string
+          submitted_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "e_verify_cases_i9_record_id_fkey"
+            columns: ["i9_record_id"]
+            isOneToOne: true
+            referencedRelation: "i9_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "e_verify_cases_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -168,6 +217,99 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      i9_records: {
+        Row: {
+          created_at: string
+          employee_name: string | null
+          id: string
+          section1_data: Json | null
+          section2_data: Json | null
+          section3_data: Json | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          employee_name?: string | null
+          id?: string
+          section1_data?: Json | null
+          section2_data?: Json | null
+          section3_data?: Json | null
+          status: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          employee_name?: string | null
+          id?: string
+          section1_data?: Json | null
+          section2_data?: Json | null
+          section3_data?: Json | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "i9_records_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invitations: {
+        Row: {
+          created_at: string
+          firm_id: string
+          id: string
+          invited_user_id: string
+          inviter_id: string
+          role: string
+          status: "pending" | "accepted" | "declined"
+        }
+        Insert: {
+          created_at?: string
+          firm_id: string
+          id?: string
+          invited_user_id: string
+          inviter_id: string
+          role: string
+          status?: "pending" | "accepted" | "declined"
+        }
+        Update: {
+          created_at?: string
+          firm_id?: string
+          id?: string
+          invited_user_id?: string
+          inviter_id?: string
+          role?: string
+          status?: "pending" | "accepted" | "declined"
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invitations_firm_id_fkey"
+            columns: ["firm_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invitations_invited_user_id_fkey"
+            columns: ["invited_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invitations_inviter_id_fkey"
+            columns: ["inviter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -294,29 +436,35 @@ export type Database = {
       profiles: {
         Row: {
           email: string | null
+          email_token: string | null
           firm_id: string | null
           full_name: string | null
           id: string
           jurisdiction: string | null
           role: string | null
+          subscription_code: string | null
           subscription_status: string | null
         }
         Insert: {
           email?: string | null
+          email_token?: string | null
           firm_id?: string | null
           full_name?: string | null
           id: string
           jurisdiction?: string | null
           role?: string | null
+          subscription_code?: string | null
           subscription_status?: string | null
         }
         Update: {
           email?: string | null
+          email_token?: string | null
           firm_id?: string | null
           full_name?: string | null
           id?: string
           jurisdiction?: string | null
           role?: string | null
+          subscription_code?: string | null
           subscription_status?: string | null
         }
         Relationships: [
@@ -338,28 +486,28 @@ export type Database = {
       }
       saved_queries: {
         Row: {
-          id: string
           created_at: string
-          user_id: string
+          id: string
+          jurisdiction: string
           name: string
           query: string
-          jurisdiction: string
+          user_id: string
         }
         Insert: {
-          id?: string
           created_at?: string
-          user_id: string
+          id?: string
+          jurisdiction: string
           name: string
           query: string
-          jurisdiction: string
+          user_id: string
         }
         Update: {
-          id?: string
           created_at?: string
-          user_id?: string
+          id?: string
+          jurisdiction?: string
           name?: string
           query?: string
-          jurisdiction?: string
+          user_id?: string
         }
         Relationships: [
           {
@@ -368,33 +516,33 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
-          }
+          },
         ]
       }
       signature_requests: {
         Row: {
-          id: string
           created_at: string
-          user_id: string
           document_id: string
-          signatories: Json | null
+          id: string
           overall_status: string | null
+          signatories: Json | null
+          user_id: string
         }
         Insert: {
-          id: string
           created_at?: string
-          user_id: string
           document_id: string
-          signatories?: Json | null
+          id: string
           overall_status?: string | null
+          signatories?: Json | null
+          user_id: string
         }
         Update: {
-          id?: string
           created_at?: string
-          user_id?: string
           document_id?: string
-          signatories?: Json | null
+          id?: string
           overall_status?: string | null
+          signatories?: Json | null
+          user_id?: string
         }
         Relationships: [
           {
@@ -410,7 +558,7 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
-          }
+          },
         ]
       }
       tasks: {

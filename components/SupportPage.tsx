@@ -1,20 +1,21 @@
-
 import React from 'react';
 
 const SupportPage: React.FC = () => {
   return (
-    <div className="max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 text-center">Support & Help Center</h1>
-      <p className="text-slate-600 dark:text-slate-400 mt-2 text-center">Find answers to common questions or get in touch with our team.</p>
+    <div className="max-w-6xl mx-auto">
+      <div className="text-center mb-12">
+        <h1 className="text-4xl font-extrabold text-slate-800 dark:text-slate-100">Support & Help Center</h1>
+        <p className="text-lg text-slate-600 dark:text-slate-400 mt-2">Find answers to common questions or get in touch with our team.</p>
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 mt-12">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-12">
         {/* FAQ Section */}
-        <div>
+        <div className="lg:col-span-3">
           <h2 className="text-2xl font-bold text-slate-700 dark:text-slate-200 mb-4">Frequently Asked Questions</h2>
           <div className="space-y-4">
             <FAQItem
-              question="Is LegalDraft AI a law firm?"
-              answer="No. LegalDraft AI is a software tool designed to assist with document drafting and review. It does not provide legal advice, and all documents should be reviewed by a licensed attorney in your jurisdiction."
+              question="Is this platform a law firm?"
+              answer="No. We are a software tool designed to assist with document drafting and review. We do not provide legal advice, and all documents should be reviewed by a licensed attorney in your jurisdiction."
             />
             <FAQItem
               question="How accurate is the AI?"
@@ -32,7 +33,7 @@ const SupportPage: React.FC = () => {
         </div>
 
         {/* Contact Form Section */}
-        <div>
+        <div className="lg:col-span-2">
           <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700">
             <h2 className="text-2xl font-bold text-slate-700 dark:text-slate-200 mb-4">Contact Support</h2>
             <form className="space-y-4">
@@ -60,9 +61,14 @@ const SupportPage: React.FC = () => {
 };
 
 const FAQItem: React.FC<{ question: string; answer: string }> = ({ question, answer }) => (
-  <details className="bg-white dark:bg-slate-800 p-4 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer">
-    <summary className="font-medium text-slate-800 dark:text-slate-200">{question}</summary>
-    <p className="text-slate-600 dark:text-slate-400 mt-2">{answer}</p>
+  <details className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer group">
+    <summary className="font-semibold text-slate-800 dark:text-slate-200 flex justify-between items-center list-none">
+        {question}
+        <div className="ml-4 transition-transform transform group-open:rotate-180">
+            <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+        </div>
+    </summary>
+    <p className="text-slate-600 dark:text-slate-400 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">{answer}</p>
   </details>
 );
 
