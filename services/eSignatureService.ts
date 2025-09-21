@@ -1,6 +1,5 @@
 
-
-import { Signatory, SignatureStatus, SignatoryStatus, Json } from '../types';
+import { Signatory, DocumentStatus, Json } from '../types';
 import { supabase } from './supabaseClient';
 
 
@@ -43,7 +42,7 @@ export const sendForSignature = async (
  */
 export const getSignatureStatus = async (
     signatureRequestId: string
-): Promise<{ status: SignatureStatus; signatories: Signatory[] }> => {
+): Promise<{ status: DocumentStatus; signatories: Signatory[] }> => {
     await new Promise(resolve => setTimeout(resolve, 800)); // Simulate network latency
 
     const { data: request, error } = await supabase
@@ -78,11 +77,14 @@ export const getSignatureStatus = async (
             .update({ signatories: signatories as unknown as Json, overall_status: newStatus })
             .eq('id', signatureRequestId);
 
-        if (updateError) throw updateError;
+        if (updateError) {
+            console.error("Error updating signature status:", updateError);
+            throw new Error(`Failed to update signature status: ${updateError.message}`);
+        }
     }
 
     return {
-        status: newStatus as SignatureStatus,
+        status: newStatus as DocumentStatus,
         signatories: signatories,
     };
 };

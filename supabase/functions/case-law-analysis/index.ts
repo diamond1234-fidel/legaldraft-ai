@@ -1,10 +1,10 @@
-// FIX: Declare Deno for environments where the Deno global is not recognized.
+
 declare const Deno: any;
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
-import { GoogleGenAI } from 'npm:@google/genai';
 
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=';
 const COURT_LISTENER_API_KEY = Deno.env.get('COURT_LISTENER_API_KEY')!;
 const COURT_LISTENER_API_URL = 'https://www.courtlistener.com/api/rest/v3/';
 
@@ -21,7 +21,6 @@ serve(async (req) => {
     if (!COURT_LISTENER_API_KEY) throw new Error("COURT_LISTENER_API_KEY not set.");
     if (!opinion_id) throw new Error("Missing opinion_id");
 
-    const ai = new GoogleGenAI({ apiKey });
     const headers = { 'Authorization': `Token ${COURT_LISTENER_API_KEY}` };
 
     // Fetch opinion and cited opinions in parallel
@@ -49,12 +48,29 @@ serve(async (req) => {
       Provide a concise summary of the core legal holding of this opinion and briefly describe its significance based on the number of citations.
     `;
     
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
+    const geminiReqBody = {
+      contents: [{
+        parts: [{
+          text: prompt,
+        }],
+      }],
+    };
+
+    const geminiResponse = await fetch(`${GEMINI_API_URL}${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(geminiReqBody),
     });
-    
-    const aiSummary = response.text;
+
+    if (!geminiResponse.ok) {
+      const errorBody = await geminiResponse.json();
+      throw new Error(`Gemini API request failed: ${errorBody.error?.message || geminiResponse.statusText}`);
+    }
+
+    const geminiData = await geminiResponse.json();
+    const aiSummary = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!aiSummary) throw new Error("No summary returned from Gemini API.");
 
     return new Response(JSON.stringify({
       opinion: opinionData,

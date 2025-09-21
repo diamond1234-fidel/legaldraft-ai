@@ -1,4 +1,3 @@
-
 import { SelectOption } from './types';
 
 export const BACKEND_URL = 'https://legalcase.vercel.app';
@@ -66,57 +65,56 @@ export const US_JURISDICTIONS: SelectOption[] = [
     { value: "INTL", label: "International" },
 ];
 
-// FIX: Add SUPPORTING_DOC_TYPES
-export const SUPPORTING_DOC_TYPES = [
+export const JURISDICTION_DATABASES: { [key: string]: string[] } = {
+    "USA-CA": ["California Civil Code", "California Business and Professions Code", "Recent CA Appellate Opinions (last 5 years)"],
+    "USA-NY": ["New York General Obligations Law", "New York Uniform Commercial Code", "Recent NY Appellate Division Opinions (last 5 years)"],
+    "USA-TX": ["Texas Business & Commerce Code", "Texas Property Code", "Recent TX Supreme Court Opinions (last 5 years)"],
+    "USA-FL": ["Florida Statutes - Commercial Relations", "Florida Statutes - Real and Personal Property", "Recent FL Supreme Court Opinions"],
+    "USA-DE": ["Delaware General Corporation Law", "Delaware Limited Liability Company Act", "Recent DE Court of Chancery Opinions"],
+    "GBR": ["UK Companies Act 2006", "UK Sale of Goods Act 1979", "Recent UK Supreme Court judgments"],
+};
+
+export const SUPPORTING_DOC_TYPES: string[] = [
     'Affidavit of Support',
     'Cover Letter for I-130',
-    'Personal Statement of Bona Fide Marriage',
-    'Cover Letter for I-485',
-    'Declaration of Financial Support',
+    'Personal Statement of Relationship',
 ];
 
-// FIX: Add PRACTICE_AREAS
-export const PRACTICE_AREAS: SelectOption[] = [
-    { value: "family-law", label: "Family Law" },
-    { value: "immigration", label: "Immigration Law" },
-    { value: "criminal-defense", label: "Criminal Defense" },
+export const OPTIONAL_CLAUSES: { id: string; label: string; description: string }[] = [
+    { id: 'confidentiality', label: 'Confidentiality', description: 'Includes a clause for non-disclosure of sensitive information.' },
+    { id: 'indemnity', label: 'Indemnity', description: 'One party agrees to pay for losses or damages caused by another party.' },
+];
+
+export const PRACTICE_AREAS = [
     { value: "corporate", label: "Corporate Law" },
-    { value: "real-estate", label: "Real Estate" },
-    { value: "intellectual-property", label: "Intellectual Property" },
-    { value: "personal-injury", label: "Personal Injury" },
+    { value: "ip", label: "Intellectual Property" },
+    { value: "litigation", label: "Litigation" },
+    { value: "family", label: "Family Law" },
+    { value: "real_estate", label: "Real Estate" },
+    { value: "immigration", label: "Immigration" },
     { value: "other", label: "Other" },
 ];
 
-// FIX: Add USCIS_FORMS
 export const USCIS_FORMS = [
-  // Family-Based
-  { id: 'i-130', name: 'I-130', title: 'Petition for Alien Relative', description: 'To petition for a qualifying foreign-born relative to immigrate to the United States.', category: 'Family-Based', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-130.pdf' },
-  { id: 'i-485', name: 'I-485', title: 'Application to Register Permanent Residence or Adjust Status', description: 'Used by individuals in the U.S. to apply for lawful permanent resident status.', category: 'Family-Based', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-485.pdf' },
-  { id: 'i-129f', name: 'I-129F', title: 'Petition for Alien Fiancé(e)', description: 'For a U.S. citizen to bring their foreign-citizen fiancé(e) to the U.S. to marry.', category: 'Family-Based', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-129f.pdf' },
-  { id: 'i-864', name: 'I-864', title: 'Affidavit of Support', description: 'Required for most family-based immigrants to show they have adequate means of financial support.', category: 'Family-Based', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-864.pdf' },
-  { id: 'i-751', name: 'I-751', title: 'Petition to Remove Conditions on Residence', description: 'For conditional permanent residents who obtained status through marriage to remove the conditions.', category: 'Family-Based', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-751.pdf' },
-  
-  // Citizenship
-  { id: 'n-400', name: 'N-400', title: 'Application for Naturalization', description: 'The application to become a U.S. citizen.', category: 'Citizenship', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/n-400.pdf' },
-  { id: 'n-600', name: 'N-600', title: 'Application for Certificate of Citizenship', description: 'To claim U.S. citizenship by birth to a U.S. citizen parent or by deriving citizenship after birth.', category: 'Citizenship', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/n-600.pdf' },
-  { id: 'n-600k', name: 'N-600K', title: 'Application for Citizenship and Issuance of Certificate Under Section 322', description: 'For a child residing outside the U.S. to claim U.S. citizenship.', category: 'Citizenship', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/n-600k.pdf' },
-
-  // Employment-Based
-  { id: 'i-129', name: 'I-129', title: 'Petition for a Nonimmigrant Worker', description: 'Used by employers to petition for a foreign national to come to the U.S. temporarily to perform services or labor.', category: 'Employment-Based', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-129.pdf' },
-  { id: 'i-140', name: 'I-140', title: 'Immigrant Petition for Alien Worker', description: 'Used by employers to petition for an alien worker to become a permanent resident in the U.S.', category: 'Employment-Based', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-140.pdf' },
-  { id: 'i-907', name: 'I-907', title: 'Request for Premium Processing Service', description: 'To request faster processing for certain employment-based petitions and applications.', category: 'Employment-Based', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-907.pdf' },
-  { id: 'i-9', name: 'I-9', title: 'Employment Eligibility Verification', description: 'Used by employers to verify the identity and employment authorization of individuals hired for employment in the United States.', category: 'Employment-Based', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-9.pdf' },
-
-  // Humanitarian
-  { id: 'i-589', name: 'I-589', title: 'Application for Asylum and for Withholding of Removal', description: 'To apply for asylum in the United States and for withholding of removal (formerly called "withholding of deportation").', category: 'Humanitarian', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-589.pdf' },
-  { id: 'i-730', name: 'I-730', title: 'Refugee/Asylee Relative Petition', description: 'For a principal refugee or asylee to petition for qualifying relatives to join them in the U.S.', category: 'Humanitarian', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-730.pdf' },
-  
-  // Other Common Forms
-  { id: 'g-28', name: 'G-28', title: 'Notice of Entry of Appearance as Attorney or Accredited Representative', description: 'To provide notice that an attorney or accredited representative is representing a person in a matter before DHS.', category: 'Other Common Forms', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/g-28.pdf' },
-  { id: 'i-765', name: 'I-765', title: 'Application for Employment Authorization', description: 'Used by certain foreign nationals to request an Employment Authorization Document (EAD).', category: 'Other Common Forms', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-765.pdf' },
-  { id: 'i-131', name: 'I-131', title: 'Application for Travel Document', description: 'To apply for a re-entry permit, refugee travel document, or advance parole travel document.', category: 'Other Common Forms', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-131.pdf' },
-  { id: 'i-824', name: 'I-824', title: 'Application for Action on an Approved Application or Petition', description: 'To request further action on a previously approved application or petition.', category: 'Other Common Forms', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-824.pdf' },
-  { id: 'i-290b', name: 'I-290B', title: 'Notice of Appeal or Motion', description: 'To file an appeal or a motion to reopen or reconsider certain decisions made by USCIS.', category: 'Other Common Forms', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-290b.pdf' },
-  { id: 'i-601', name: 'I-601', title: 'Application for Waiver of Grounds of Inadmissibility', description: 'For applicants who are inadmissible to the U.S. and are seeking a waiver.', category: 'Other Common Forms', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-601.pdf' },
-  { id: 'i-212', name: 'I-212', title: 'Application for Permission to Reapply for Admission into the U.S. After Deportation or Removal', description: 'For individuals who have been deported or removed and need permission to reapply for admission.', category: 'Other Common Forms', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-212.pdf' },
+    { id: 'i-864', name: 'I-864', title: 'Affidavit of Support', description: 'Used to show that a visa applicant has adequate means of financial support and is not likely to become a public charge.', category: 'Family-Based', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-864.pdf' },
+    { id: 'i-130', name: 'I-130', title: 'Petition for Alien Relative', description: 'Used by a U.S. citizen or lawful permanent resident to establish the relationship to certain alien relatives who wish to immigrate to the United States.', category: 'Family-Based', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-130.pdf'},
+    { id: 'i-485', name: 'I-485', title: 'Application to Register Permanent Residence or Adjust Status', description: 'Application to adjust your status to a lawful permanent resident of the United States.', category: 'Family-Based', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-485.pdf' },
+    { id: 'i-129f', name: 'I-129F', title: 'Petition for Alien Fiancé(e)', description: 'For U.S. citizens to petition for a foreign fiancé(e) to come to the U.S. for marriage.', category: 'Family-Based', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-129f.pdf' },
+    { id: 'i-751', name: 'I-751', title: 'Petition to Remove Conditions on Residence', description: 'For conditional permanent residents who obtained status through marriage to remove the conditions on their residence.', category: 'Family-Based', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-751.pdf' },
+    { id: 'n-400', name: 'N-400', title: 'Application for Naturalization', description: 'The application to become a U.S. citizen.', category: 'Citizenship', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/n-400.pdf' },
+    { id: 'n-600', name: 'N-600', title: 'Application for Certificate of Citizenship', description: 'Application for individuals who are already U.S. citizens by birth or through their parents to get a certificate.', category: 'Citizenship', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/n-600.pdf' },
+    { id: 'n-600k', name: 'N-600K', title: 'Application for Citizenship and Issuance of Certificate Under Section 322', description: 'For children who regularly reside in a foreign country to claim U.S. citizenship based on their parents.', category: 'Citizenship', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/n-600k.pdf' },
+    { id: 'i-129', name: 'I-129', title: 'Petition for a Nonimmigrant Worker', description: 'Used by employers to petition for a nonimmigrant worker to come to the U.S. temporarily.', category: 'Employment-Based', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-129.pdf' },
+    { id: 'i-140', name: 'I-140', title: 'Immigrant Petition for Alien Worker', description: 'Used by employers to petition for an alien worker to become a lawful permanent resident in the U.S.', category: 'Employment-Based', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-140.pdf' },
+    { id: 'i-765', name: 'I-765', title: 'Application for Employment Authorization', description: 'Used by certain foreign nationals to request an Employment Authorization Document (EAD).', category: 'Employment-Based', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-765.pdf' },
+    { id: 'i-9', name: 'I-9', title: 'Employment Eligibility Verification', description: 'Used by employers to verify the identity and employment authorization of individuals hired for employment in the United States.', category: 'Employment-Based', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-9.pdf' },
+    { id: 'i-589', name: 'I-589', title: 'Application for Asylum and for Withholding of Removal', description: 'Application for asylum in the United States and for withholding of removal (formerly called "withholding of deportation").', category: 'Humanitarian', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-589.pdf' },
+    { id: 'i-730', name: 'I-730', title: 'Refugee/Asylee Relative Petition', description: 'Used by asylees and refugees to petition for qualifying relatives to join them in the U.S.', category: 'Humanitarian', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-730.pdf' },
+    { id: 'i-601', name: 'I-601', title: 'Application for Waiver of Grounds of Inadmissibility', description: 'For applicants who are inadmissible to the United States and are seeking an immigrant visa, adjustment of status, or certain other statuses.', category: 'Humanitarian', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-601.pdf' },
+    { id: 'i-212', name: 'I-212', title: 'Application for Permission to Reapply for Admission into the U.S. After Deportation or Removal', description: 'Application for individuals who have been deported or removed from the U.S. and need permission to reapply.', category: 'Humanitarian', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-212.pdf' },
+    { id: 'g-28', name: 'G-28', title: 'Notice of Entry of Appearance as Attorney or Accredited Representative', description: 'Used to notify USCIS that an attorney or accredited representative is representing an applicant, petitioner, or respondent.', category: 'Other Common Forms', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/g-28.pdf' },
+    { id: 'i-824', name: 'I-824', title: 'Application for Action on an Approved Application or Petition', description: 'Request further action on a previously approved application or petition, such as getting a duplicate approval notice.', category: 'Other Common Forms', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-824.pdf' },
+    { id: 'i-131', name: 'I-131', title: 'Application for Travel Document', description: 'Application for a reentry permit, refugee travel document, or advance parole travel document.', category: 'Other Common Forms', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-131.pdf' },
+    { id: 'i-907', name: 'I-907', title: 'Request for Premium Processing Service', description: 'Request faster processing for certain employment-based petitions and applications.', category: 'Other Common Forms', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-907.pdf' },
+    { id: 'i-290b', name: 'I-290B', title: 'Notice of Appeal or Motion', description: 'Used to file an appeal or a motion to reopen or reconsider certain decisions made by USCIS.', category: 'Other Common Forms', pdfUrl: 'https://www.uscis.gov/sites/default/files/document/forms/i-290b.pdf' },
 ];

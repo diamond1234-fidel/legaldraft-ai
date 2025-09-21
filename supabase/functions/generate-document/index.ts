@@ -1,10 +1,10 @@
-
-// FIX: Declare Deno for environments where the Deno global is not recognized.
+// @ts-ignore
 declare const Deno: any;
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
-import { GoogleGenAI } from 'npm:@google/genai';
+
+const GEMINI_API_URL_STREAM = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -17,57 +17,66 @@ serve(async (req) => {
     if (!apiKey) {
       throw new Error("API_KEY environment variable not set.");
     }
-
-    const ai = new GoogleGenAI({ apiKey });
-
-    const selectedOptionalClauses = Object.entries(formData.optionalClauses)
+    
+    // Using the high-quality, immigration-specific prompt
+    const selectedOptionalClauses = Object.entries(formData.optionalClauses || {})
       .filter(([, isSelected]) => isSelected)
       .map(([key]) => key)
       .join(', ');
 
     const prompt = `
-      You are an AI legal assistant acting as an expert in drafting legal documents compliant with United States law, with a specialization in the laws of **${formData.state}**.
-      Your task is to generate a professional, lawyer-friendly legal document based on the provided specifications. The document must not only be well-formatted but also deeply incorporate the legal nuances, common practices, and statutory requirements of the specified jurisdiction.
+      You are an AI legal assistant specializing in U.S. immigration law.
+      Your task is to generate a professional, lawyer-friendly supporting document for an immigration case. The document must be well-formatted, persuasive, and tailored to the specific context provided.
       
-      **Primary Directive: State-Specific Customization for ${formData.state}**
-      This is the most critical instruction. The generated document's clauses, definitions, and overall structure must reflect the specific legal landscape of **${formData.state}**. For example, if drafting a residential lease for California ('USA-CA'), you must include clauses related to the Costa-Hawkins Rental Housing Act or specific security deposit regulations (Civil Code § 1950.5). If for Texas ('USA-TX'), landlord-tenant laws from the Texas Property Code must be reflected. Prioritize this state-specific tailoring above all else.
-
       **Document Specifications:**
-      1.  **Document Type:** ${formData.documentType}
-      2.  **Governing Law (State):** ${formData.state}, USA.
-      3.  **Party A (e.g., Disclosing Party, Landlord, Employer):**
-          *   Name: ${formData.partyA_name || 'Not Specified'}
-          *   Address: ${formData.partyA_address || 'Not Specified'}
-      4.  **Party B (e.g., Receiving Party, Tenant, Employee):**
-          *   Name: ${formData.partyB_name || 'Not Specified'}
-          *   Address: ${formData.partyB_address || 'Not Specified'}
-      5.  **Effective Date:** ${formData.effectiveDate}
-      6.  **Optional Clauses to Include:** ${selectedOptionalClauses || 'None'}
-      7.  **Other Custom Details/Context:** ${formData.customDetails || 'None'}
+      1.  **Document Type:** ${formData.documentType} (e.g., Affidavit of Support, Cover Letter, Personal Statement).
+      2.  **Case Context / Custom Details:** ${formData.customDetails || 'None provided. Generate a standard template.'}
+      3.  **Key Individuals Involved:**
+          *   Primary Applicant/Beneficiary: ${formData.partyA_name || 'Not Specified'}
+          *   Sponsor/Petitioner/Declarant: ${formData.partyB_name || 'Not Specified'}
+      4.  **Date:** ${formData.effectiveDate}
+      5.  **Optional Clauses/Points to Include:** ${selectedOptionalClauses || 'None'}
 
       **Formatting Instructions:**
       *   Use Markdown for formatting.
-      *   Start with a clear title.
-      *   Include an introductory paragraph identifying the parties and the effective date.
-      *   Use numbered sections for all major clauses (e.g., 1. Definitions, 2. Term).
-      *   Use sub-clauses (e.g., 3.1, 3.2 or a, b, c) where appropriate.
-      *   Bold key terms or headings.
-      *   Conclude with a proper closing statement and formatted signature blocks.
+      *   Start with a clear title and appropriate headers (e.g., "RE: I-130 Petition for [Beneficiary Name]").
+      *   Include standard legal document formatting, such as formal salutations, clear paragraphs, and a proper closing with signature blocks.
+      *   Where applicable, use placeholders like "[Your Name]" or "[Date]" for information that needs to be manually filled in.
+      *   Ensure the tone is professional and appropriate for submission to USCIS or other government bodies.
 
-      Generate the state-compliant document now.
+      Generate the immigration supporting document now.
     `;
 
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
+    const geminiReqBody = {
+      contents: [{
+        parts: [{
+          text: prompt,
+        }],
+      }],
+    };
+
+    const geminiResponse = await fetch(`${GEMINI_API_URL_STREAM}${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(geminiReqBody),
     });
+
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text();
+      throw new Error(`Gemini API request failed: ${errorText}`);
+    }
     
-    return new Response(JSON.stringify({ text: response.text }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
+    // Pipe the streaming response from Gemini directly to the client
+    return new Response(geminiResponse.body, {
+      headers: { ...corsHeaders, 'Content-Type': 'text/event-stream' },
     });
 
   } catch (error) {
+    console.error("Function Error:", error);
+    // This part of the code won't stream an error, it will return a regular error response.
+    // Client-side will see this as a failed fetch.
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,

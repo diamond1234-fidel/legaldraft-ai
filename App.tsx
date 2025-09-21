@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
-import { AppState, Page, Document, Template, UserProfile, Notification, Json, ContractAnalysis } from './types';
+import { AppState, Page, Document, Template, UserProfile, Notification, Profile, Json, ContractAnalysis } from './types';
 import LandingPage from './components/LandingPage';
 import LoginPage from './components/LoginPage';
 import Dashboard from './components/Dashboard';
@@ -29,6 +29,8 @@ import AboutPage from './components/AboutPage';
 import SecurityPage from './components/SecurityPage';
 import DisclaimerPage from './components/DisclaimerPage';
 import DisclaimerBanner from './components/DisclaimerBanner';
+// FIX: Import FormsPage to be used in the router
+import FormsPage from './components/FormsPage';
 import RoadmapPage from './components/RoadmapPage';
 import InternalRoadmapPage from './components/InternalRoadmapPage';
 import { BACKEND_URL } from './constants';
@@ -43,8 +45,7 @@ const initialAppState: AppState = {
     editingTemplate: null,
 };
 
-// FIX: Changed to a named export to resolve the "no default export" error in index.tsx.
-export const App: React.FC = () => {
+const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(initialAppState);
   const [session, setSession] = useState<Session | null>(null);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
@@ -177,7 +178,6 @@ export const App: React.FC = () => {
         templates: templates || [],
         notifications: notifications || [],
         usage: { analyzed: (documents || []).length },
-        // Add defaults for new properties
         clients: [],
         matters: [],
         notes: [],
@@ -186,9 +186,6 @@ export const App: React.FC = () => {
         invoices: [],
         i9Records: [],
         eVerifyCases: [],
-        teamMembers: [],
-        payment_settings: { stripe: { connected: false, publishableKey: ''}, paypal: { connected: false, clientId: ''}, bankTransfer: { enabled: false, instructions: ''}},
-        invoice_settings: { template: 'modern', accentColor: '#3b82f6', logoUrl: '', fromAddress: '', notes: 'Thank you for your business.'},
     };
 
     setAppState(prevState => ({ ...prevState, user: userProfile }));
@@ -464,6 +461,8 @@ export const App: React.FC = () => {
         return <CreateTemplatePage onSave={handleSaveTemplate} existingTemplate={appState.editingTemplate} />;
       case 'templates':
         return appState.user ? <TemplateManagerPage templates={appState.user.templates} onEdit={handleEditTemplate} onDelete={handleDeleteTemplate} onNavigate={handleNavigate} /> : null;
+      case 'forms':
+        return <FormsPage onNavigate={handleNavigate} />;
       default:
         return appState.isAuthenticated 
             ? (appState.user ? <Dashboard user={appState.user} onNavigate={handleNavigate} onViewDocument={handleViewDocument} /> : null) 
@@ -511,3 +510,5 @@ export const App: React.FC = () => {
     </div>
   );
 };
+
+export default App;

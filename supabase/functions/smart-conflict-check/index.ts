@@ -1,9 +1,10 @@
-// FIX: Declare Deno for environments where the Deno global is not recognized.
+
 declare const Deno: any;
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
-import { GoogleGenAI, Type } from 'npm:@google/genai';
+
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=';
 
 interface Party {
     name: string;
@@ -41,8 +42,6 @@ serve(async (req) => {
       throw new Error("API_KEY environment variable not set.");
     }
 
-    const ai = new GoogleGenAI({ apiKey });
-
     const clientMap = new Map(allClients.map(c => [c.id, c.name]));
 
     const pastMattersSummary = allMatters.map(matter => {
@@ -74,30 +73,45 @@ serve(async (req) => {
     `;
     
     const responseSchema = {
-      type: Type.ARRAY,
+      type: "ARRAY",
       items: {
-        type: Type.OBJECT,
+        type: "OBJECT",
         properties: {
-          matchedName: { type: Type.STRING },
-          conflictType: { type: Type.STRING, enum: ['Past Client', 'Past Opposing Party'] },
-          conflictingMatterId: { type: Type.STRING },
-          conflictingMatterName: { type: Type.STRING },
-          reason: { type: Type.STRING },
+          matchedName: { type: "STRING" },
+          conflictType: { type: "STRING", enum: ['Past Client', 'Past Opposing Party'] },
+          conflictingMatterId: { type: "STRING" },
+          conflictingMatterName: { type: "STRING" },
+          reason: { type: "STRING" },
         },
         required: ["matchedName", "conflictType", "conflictingMatterId", "conflictingMatterName", "reason"],
       },
     };
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
+    const geminiReqBody = {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
         responseMimeType: "application/json",
-        responseSchema,
-      },
+        responseSchema: responseSchema,
+      }
+    };
+
+    const geminiResponse = await fetch(`${GEMINI_API_URL}${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(geminiReqBody),
     });
 
-    return new Response(response.text, {
+    if (!geminiResponse.ok) {
+      const errorBody = await geminiResponse.json();
+      throw new Error(`Gemini API request failed: ${errorBody.error?.message || geminiResponse.statusText}`);
+    }
+    
+    const geminiData = await geminiResponse.json();
+    const text = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) throw new Error("No text content returned from Gemini API.");
+
+
+    return new Response(text, {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });

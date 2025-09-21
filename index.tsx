@@ -1,8 +1,8 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-// FIX: Changed to a named import to match the updated export in App.tsx.
-import { App } from './App';
+// FIX: Module '"file:///App"' has no default export.
+import App from './App';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

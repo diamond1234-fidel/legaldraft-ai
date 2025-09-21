@@ -3,9 +3,8 @@ declare const Deno: any;
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
-// @ts-ignore
-import { GoogleGenAI, Type } from 'npm:@google/genai';
 
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=';
 const COURT_LISTENER_API_KEY = Deno.env.get('COURT_LISTENER_API_KEY');
 const COURT_LISTENER_API_URL = 'https://www.courtlistener.com/api/rest/v3/search/';
 
@@ -21,8 +20,6 @@ serve(async (req: Request) => {
     if (!apiKey) throw new Error("API_KEY environment variable not set.");
     if (!COURT_LISTENER_API_KEY) throw new Error("COURT_LISTENER_API_KEY environment variable not set.");
     
-    const ai = new GoogleGenAI({ apiKey });
-
     // Step 1: Search CourtListener
     const clQuery = `${query}`;
     const searchUrl = `${COURT_LISTENER_API_URL}?q=${encodeURIComponent(clQuery)}&type=o&order_by=score desc`;
@@ -75,37 +72,37 @@ serve(async (req: Request) => {
     `;
     
     const responseSchema = {
-        type: Type.OBJECT,
+        type: "OBJECT",
         properties: {
-            summary: { type: Type.STRING, description: "Summary of the law based on the provided cases." },
+            summary: { type: "STRING", description: "Summary of the law based on the provided cases." },
             argumentStrength: {
-                type: Type.OBJECT,
+                type: "OBJECT",
                 properties: {
-                    assessment: { type: Type.STRING, description: "Assessment of the argument strength (e.g., Strong, Moderate, Weak)." },
-                    reasoning: { type: Type.STRING, description: "Reasoning for the argument strength assessment." }
+                    assessment: { type: "STRING", description: "Assessment of the argument strength (e.g., Strong, Moderate, Weak)." },
+                    reasoning: { type: "STRING", description: "Reasoning for the argument strength assessment." }
                 },
                 required: ["assessment", "reasoning"]
             },
             suggestedPrecedents: {
-                type: Type.ARRAY,
+                type: "ARRAY",
                 items: {
-                    type: Type.OBJECT,
+                    type: "OBJECT",
                     properties: {
-                        caseName: { type: Type.STRING },
-                        citation: { type: Type.STRING },
-                        reasoning: { type: Type.STRING, description: "Why this case is a strong precedent." }
+                        caseName: { type: "STRING" },
+                        citation: { type: "STRING" },
+                        reasoning: { type: "STRING", description: "Why this case is a strong precedent." }
                     },
                     required: ["caseName", "citation", "reasoning"]
                 }
             },
             caseSummaries: {
-                type: Type.ARRAY,
+                type: "ARRAY",
                 items: {
-                    type: Type.OBJECT,
+                    type: "OBJECT",
                     properties: {
-                        caseName: { type: Type.STRING },
-                        citation: { type: Type.STRING },
-                        aiSummary: { type: Type.STRING, description: "One-sentence summary of the case's relevance." }
+                        caseName: { type: "STRING" },
+                        citation: { type: "STRING" },
+                        aiSummary: { type: "STRING", description: "One-sentence summary of the case's relevance." }
                     },
                     required: ["caseName", "citation", "aiSummary"]
                 }
@@ -114,17 +111,30 @@ serve(async (req: Request) => {
         required: ["summary", "argumentStrength", "suggestedPrecedents", "caseSummaries"]
     };
 
+    const geminiReqBody = {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: responseSchema,
+      }
+    };
 
-    const genAIResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema,
-        },
+    const geminiResponse = await fetch(`${GEMINI_API_URL}${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(geminiReqBody),
     });
 
-    const analysis = JSON.parse(genAIResponse.text);
+    if (!geminiResponse.ok) {
+      const errorBody = await geminiResponse.json();
+      throw new Error(`Gemini API request failed: ${errorBody.error?.message || geminiResponse.statusText}`);
+    }
+
+    const geminiData = await geminiResponse.json();
+    const text = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) throw new Error("No text content returned from Gemini API.");
+    
+    const analysis = JSON.parse(text);
 
     // Step 3: Combine data and return
     const relevantCases = cases.map((c: any) => {
